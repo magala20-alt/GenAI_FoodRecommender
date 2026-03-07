@@ -1,5 +1,5 @@
 import { MealPlan, Meal, User, ChatMessage, DoctorNote } from '../types'
-
+// do be deleted and replaced with real API calls in the future, but for now we can use this mock data to develop the UI and test functionality without needing a backend.
 export const mockUser: User = {
   id: '1',
   email: 'patient@example.com',

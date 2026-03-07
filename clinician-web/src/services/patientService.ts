@@ -15,6 +15,7 @@ const mockPatients: Patient[] = [
     lastReviewDate: '2024-02-20',
     status: 'active',
     riskLevel: 'medium',
+    adherenceScore: 85,
   },
   {
     id: 'p2',
@@ -28,6 +29,7 @@ const mockPatients: Patient[] = [
     lastReviewDate: '2024-02-18',
     status: 'active',
     riskLevel: 'high',
+    adherenceScore: 78,
   },
   {
     id: 'p3',
@@ -41,6 +43,7 @@ const mockPatients: Patient[] = [
     lastReviewDate: '2024-02-15',
     status: 'active',
     riskLevel: 'low',
+    adherenceScore: 95,
   },
 ]
 

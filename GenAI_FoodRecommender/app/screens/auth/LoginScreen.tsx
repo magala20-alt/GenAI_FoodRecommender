@@ -7,12 +7,12 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
-  ActivityIndicator,
 } from 'react-native'
+import { LinearGradient } from 'expo-linear-gradient'
 import { useAuth } from '../../hooks'
 import { Button, TextInput } from '../../components/atoms'
 import { Colors, Typography, Spacing, BorderRadius } from '../../constants/theme'
-import { validateEmail, validatePassword, getGreeting } from '../../utils'
+import { validateEmail, validatePassword } from '../../utils'
 
 interface LoginScreenProps {
   onLoginSuccess?: () => void
@@ -23,10 +23,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
 
   const [email, setEmail] = useState('patient@example.com')
   const [password, setPassword] = useState('password')
-  const [showPassword, setShowPassword] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [apiError, setApiError] = useState<string | null>(null)
-  const [userType, setUserType] = useState<'patient' | 'doctor'>('patient')
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {}
@@ -55,7 +53,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     }
 
     try {
-      await login({ email, password, userType })
+      await login({ email, password })
       onLoginSuccess?.()
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Login failed'
@@ -64,305 +62,214 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
   }
 
   const handleForgotPassword = () => {
-    // Navigate to forgot password screen
     console.log('Navigate to forgot password')
   }
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
-    >
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
+       <LinearGradient
+        colors={['#0F172A', '#14b8a6']}
+         start={{ x: 0, y: 0 }}
+         end={{ x: 1, y: 1 }}
+         style={styles.container}
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.logo}>
-            <Text style={styles.logoText}>CS</Text>
-          </View>
-          <Text style={styles.appName}>CARESYNC</Text>
-          <Text style={styles.tagline}>Your personalised nutrition companion</Text>
-        </View>
-
-        {/* Greeting */}
-        <View style={styles.greetingSection}>
-          <Text style={styles.greeting}>{getGreeting()}</Text>
-          <Text style={styles.greetingSubtitle}>
-            Sign in to manage your nutrition journey
-          </Text>
-        </View>
-
-        {/* API Error */}
-        {apiError && (
-          <View style={styles.errorBanner}>
-            <Text style={styles.errorBannerText}>{apiError}</Text>
-          </View>
-        )}
-
-        {/* Form */}
-        <View style={styles.form}>
-          {/* Email Input */}
-          <TextInput
-            label="Email"
-            placeholder="Enter your email"
-            value={email}
-            onChangeText={(text) => {
-              setEmail(text)
-              if (errors.email) {
-                setErrors({ ...errors, email: '' })
-              }
-            }}
-            error={errors.email}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            editable={!isLoading}
-          />
-
-          {/* Password Input */}
-          <TextInput
-            label="Password"
-            placeholder="Enter your password"
-            value={password}
-            onChangeText={(text) => {
-              setPassword(text)
-              if (errors.password) {
-                setErrors({ ...errors, password: '' })
-              }
-            }}
-            error={errors.password}
-            secureTextEntry={!showPassword}
-            editable={!isLoading}
-          />
-
-          {/* Show Password Toggle */}
-          <TouchableOpacity
-            style={styles.showPasswordToggle}
-            onPress={() => setShowPassword(!showPassword)}
-          >
-            <Text style={styles.showPasswordText}>
-              {showPassword ? 'Hide' : 'Show'} password
-            </Text>
-          </TouchableOpacity>
-
-          {/* User Type Selection */}
-          <View style={styles.userTypeSection}>
-            <Text style={styles.userTypeLabel}>I'm a...</Text>
-            <View style={styles.buttonRow}>
-              <TouchableOpacity
-                style={[
-                  styles.userTypeButton,
-                  userType === 'patient' && styles.userTypeButtonActive,
-                ]}
-                onPress={() => setUserType('patient')}
-                disabled={isLoading}
-              >
-                <Text
-                  style={[
-                    styles.userTypeButtonText,
-                    userType === 'patient' && styles.userTypeButtonTextActive,
-                  ]}
-                >
-                  Patient
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.userTypeButton,
-                  userType === 'doctor' && styles.userTypeButtonActive,
-                ]}
-                onPress={() => setUserType('doctor')}
-                disabled={isLoading}
-              >
-                <Text
-                  style={[
-                    styles.userTypeButtonText,
-                    userType === 'doctor' && styles.userTypeButtonTextActive,
-                  ]}
-                >
-                  Doctor
-                </Text>
-              </TouchableOpacity>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.keyboardAvoiding}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Logo Section */}
+          <View style={styles.logoSection}>
+            <View style={styles.iconContainer}>
+              <Text style={styles.icon}>🧬</Text>
             </View>
+            <Text style={styles.appName}>CARESYNC</Text>
+            <Text style={styles.tagline}>Your personal health companion</Text>
           </View>
 
-          {/* Login Button */}
-          <Button
-            label={isLoading ? 'Signing in...' : 'Sign in'}
-            onPress={handleLogin}
-            loading={isLoading}
-            disabled={isLoading}
-            size="large"
-            style={styles.loginButton}
-          />
-        </View>
+          {/* Login Card */}
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Welcome back</Text>
+            <Text style={styles.cardSubtitle}>
+              Your doctor will send your login details
+            </Text>
 
-        {/* Help Links */}
-        <View style={styles.helpSection}>
-          <TouchableOpacity
-            onPress={handleForgotPassword}
-            disabled={isLoading}
-          >
-            <Text style={styles.helpLink}>Forgot your password?</Text>
-          </TouchableOpacity>
+            {/* API Error */}
+            {apiError && (
+              <View style={styles.errorBanner}>
+                <Text style={styles.errorBannerText}>{apiError}</Text>
+              </View>
+            )}
 
-          <Text style={styles.divider}>|</Text>
+            {/* Email Input */}
+            <View style={styles.inputWrapper}>
+              <Text style={styles.inputIcon}>✉️</Text>
+              <TextInput
+                placeholder="Email address"
+                value={email}
+                onChangeText={(text) => {
+                  setEmail(text)
+                  if (errors.email) {
+                    setErrors({ ...errors, email: '' })
+                  }
+                }}
+                error={errors.email}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                editable={!isLoading}
+                style={styles.input}
+              />
+            </View>
 
-          <TouchableOpacity disabled={isLoading}>
-            <Text style={styles.helpLink}>Contact your Doctor</Text>
-          </TouchableOpacity>
-        </View>
+            {/* Password Input */}
+            <View style={styles.inputWrapper}>
+              <Text style={styles.inputIcon}>🔒</Text>
+              <TextInput
+                placeholder="Password"
+                value={password}
+                onChangeText={(text) => {
+                  setPassword(text)
+                  if (errors.password) {
+                    setErrors({ ...errors, password: '' })
+                  }
+                }}
+                error={errors.password}
+                secureTextEntry={true}
+                editable={!isLoading}
+                style={styles.input}
+              />
+            </View>
 
-        {/* Demo Note */}
-        <View style={styles.demoSection}>
-          <Text style={styles.demoText}>
-            Demo credentials: patient@example.com / password
-          </Text>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+            {/* Login Button */}
+            <Button
+              label={isLoading ? 'Signing in...' : 'Sign In'}
+              onPress={handleLogin}
+              loading={isLoading}
+              disabled={isLoading}
+              size="large"
+              style={styles.loginButton}
+            />
+
+            {/* Forgot Password Link */}
+            <TouchableOpacity
+              onPress={handleForgotPassword}
+              disabled={isLoading}
+              style={styles.forgotPasswordContainer}
+            >
+              <Text style={styles.forgotPasswordText}>Forgot your password?</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </LinearGradient>
   )
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+  },
+  keyboardAvoiding: {
+    flex: 1,
   },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: Spacing.lg,
+    justifyContent: 'center',
     paddingVertical: Spacing.xl,
+    paddingHorizontal: Spacing.lg,
   },
-  header: {
+  logoSection: {
     alignItems: 'center',
     marginBottom: Spacing.xxl,
-    marginTop: Spacing.lg,
   },
-  logo: {
-    width: 60,
-    height: 60,
-    backgroundColor: Colors.primary,
-    borderRadius: BorderRadius.md,
+  iconContainer: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.lg,
   },
-  logoText: {
-    color: Colors.text.inverse,
-    fontSize: 24,
-    fontWeight: Typography.weights.bold as any,
+  icon: {
+    fontSize: 40,
   },
   appName: {
     fontSize: Typography.sizes.h2,
     fontWeight: Typography.weights.bold as any,
-    color: Colors.text.primary,
-    letterSpacing: 1,
+    color: '#ffffff',
+    marginBottom: Spacing.sm,
+    letterSpacing: 2,
   },
   tagline: {
     fontSize: Typography.sizes.bodySmall,
-    color: Colors.text.secondary,
-    marginTop: Spacing.sm,
+    color: 'rgba(255, 255, 255, 0.85)',
   },
-  greetingSection: {
-    marginBottom: Spacing.xl,
+  card: {
+    backgroundColor: 'rgba(20, 184, 166, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: BorderRadius.xxl,
+    padding: Spacing.lg,
+    paddingVertical: Spacing.xl,
   },
-  greeting: {
+  cardTitle: {
     fontSize: Typography.sizes.h4,
     fontWeight: Typography.weights.bold as any,
-    color: Colors.text.primary,
+    color: '#ffffff',
     marginBottom: Spacing.sm,
   },
-  greetingSubtitle: {
-    fontSize: Typography.sizes.body,
-    color: Colors.text.secondary,
+  cardSubtitle: {
+    fontSize: Typography.sizes.bodySmall,
+    color: 'rgba(255, 255, 255, 0.8)',
+    marginBottom: Spacing.lg,
   },
   errorBanner: {
-    backgroundColor: Colors.error,
+    backgroundColor: 'rgba(239, 68, 68, 0.2)',
+    borderLeftWidth: 4,
+    borderLeftColor: '#ef4444',
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
     marginBottom: Spacing.lg,
   },
   errorBannerText: {
-    color: Colors.text.inverse,
+    color: '#fecaca',
     fontSize: Typography.sizes.body,
+    fontWeight: '500',
   },
-  form: {
-    marginBottom: Spacing.xl,
-  },
-  showPasswordToggle: {
-    alignSelf: 'flex-end',
-    marginBottom: Spacing.lg,
-    marginTop: -Spacing.md,
-  },
-  showPasswordText: {
-    color: Colors.primary,
-    fontSize: Typography.sizes.bodySmall,
-    fontWeight: Typography.weights.semibold as any,
-  },
-  userTypeSection: {
-    marginBottom: Spacing.lg,
-  },
-  userTypeLabel: {
-    fontSize: Typography.sizes.bodySmall,
-    fontWeight: Typography.weights.semibold as any,
-    color: Colors.text.primary,
-    marginBottom: Spacing.md,
-  },
-  buttonRow: {
+  inputWrapper: {
     flexDirection: 'row',
-    gap: Spacing.md,
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.1)',
+    borderRadius: BorderRadius.lg,
+    paddingHorizontal: Spacing.md,
+    marginBottom: Spacing.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
-  userTypeButton: {
+  inputIcon: {
+    fontSize: 18,
+    marginRight: Spacing.sm,
+  },
+  input: {
     flex: 1,
     paddingVertical: Spacing.md,
-    borderWidth: 2,
-    borderColor: Colors.border,
-    borderRadius: BorderRadius.md,
-    alignItems: 'center',
-  },
-  userTypeButtonActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
-  },
-  userTypeButtonText: {
+    color: '#ffffff',
     fontSize: Typography.sizes.body,
-    fontWeight: Typography.weights.semibold as any,
-    color: Colors.text.primary,
-  },
-  userTypeButtonTextActive: {
-    color: Colors.text.inverse,
   },
   loginButton: {
     marginTop: Spacing.lg,
+    marginBottom: Spacing.lg,
+    backgroundColor: '#124E47',
   },
-  helpSection: {
-    flexDirection: 'row',
-    justifyContent: 'center',
+  forgotPasswordContainer: {
     alignItems: 'center',
-    marginBottom: Spacing.xl,
-    gap: Spacing.md,
   },
-  helpLink: {
-    color: Colors.primary,
+  forgotPasswordText: {
+    color: 'rgba(255, 255, 255, 0.8)',
     fontSize: Typography.sizes.bodySmall,
     fontWeight: Typography.weights.semibold as any,
-  },
-  divider: {
-    color: Colors.border,
-    fontSize: Typography.sizes.body,
-  },
-  demoSection: {
-    backgroundColor: Colors.surfaceLight,
-    borderLeftWidth: 4,
-    borderLeftColor: Colors.primaryLight,
-    padding: Spacing.md,
-    borderRadius: BorderRadius.md,
-  },
-  demoText: {
-    fontSize: Typography.sizes.caption,
-    color: Colors.text.secondary,
-    fontStyle: 'italic',
   },
 })

@@ -1,30 +1,55 @@
-// Color Palette - Warm, accessible, and encouraging
+// Color Palette - Warm, encouraging, and human
+// Design: Soft palette with warm white background, teal accent, gentle amber warnings
 export const Colors = {
-  primary: '#00a699', // Teal/green
-  primaryDark: '#00796b',
-  primaryLight: '#26c6da',
+  // Primary (Teal - main accent, warm and welcoming)
+  primary: '#0D9488',      // Main teal accent
+  primaryDark: '#0A7F74',   // Darker teal for pressed states
+  primaryLight: '#2DD4BF',  // Lighter teal for hover/focus
+  primaryTint: '#E0F2F1',   // Very light teal background
   
-  secondary: '#ff6b6b', // Soft red for alerts
-  success: '#2ecc71', // Green
-  warning: '#f39c12', // Amber
-  error: '#e74c3c', // Red
+  // Secondary (Warm amber for warnings and highlights)
+  secondary: '#F59E0B',     // Warm amber
+  secondaryLight: '#FBBF24',
+  secondaryTint: '#FFFBEB', // Very light amber background
   
-  background: '#f5f5f5',
-  surface: '#ffffff',
-  surfaceLight: '#f9f9f9',
+  // Neutral - Warm, soft palette
+  white: '#FFFFFF',
+  warmWhite: '#FAFAF9',     // Soft warm white (main background)
+  light: '#F9FAFB',         // Off-white
+  lightGray: '#E5E7EB',     // Light gray for borders
+  gray: '#9CA3AF',          // Medium gray for secondary text
+  darkGray: '#6B7280',      // Darker gray
+  dark: '#374151',          // Dark text
+  darkest: '#1F2937',       // Darkest text
   
+  // Status colors
+  success: '#10B981',
+  successTint: '#ECFDF5',
+  warning: '#F59E0B',
+  warningTint: '#FFFBEB',
+  danger: '#EF4444',
+  dangerTint: '#FEF2F2',
+  
+  // Text (encouraging, warm tone)
   text: {
-    primary: '#1a1a1a',
-    secondary: '#666',
-    tertiary: '#999',
-    inverse: '#ffffff',
+    primary: '#1F2937',
+    secondary: '#6B7280',
+    tertiary: '#9CA3AF',
+    inverse: '#FFFFFF',
   },
   
-  border: '#ddd',
-  divider: '#eee',
+  // UI Elements
+  border: '#E5E7EB',
+  divider: '#F3F4F6',
   
+  // Overlays (for modals, dimming)
   overlay: 'rgba(0, 0, 0, 0.5)',
   shadow: 'rgba(0, 0, 0, 0.1)',
+  
+  // Backgrounds (warm, soft)
+  background: '#FAFAF9',
+  surface: '#FFFFFF',
+  surfaceHover: '#F9FAFB',
 }
 
 // Spacing scale
@@ -56,12 +81,12 @@ export const Typography = {
   },
 }
 
-// Border Radius
+// Border Radius - Rounded, friendly design (16 is main for cards)
 export const BorderRadius = {
   sm: 4,
   md: 8,
   lg: 12,
-  xl: 16,
+  xl: 16,    // Main card radius (generous, rounded)
   xxl: 20,
   circular: 999,
 }

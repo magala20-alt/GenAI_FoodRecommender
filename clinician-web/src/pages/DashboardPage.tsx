@@ -32,8 +32,8 @@ export function DashboardPage() {
       setStats({
         totalPatients: allPatients.length,
         activePatients: activeCount,
-        highRiskCount,
-        avgAdherence,
+        highRiskCount: highRiskCount,
+        averageAdherence: avgAdherence,
         pendingInterventions: 5,
         reviewsThisWeek: 3,
       })
@@ -87,7 +87,7 @@ export function DashboardPage() {
             <StatCard
               title="Total Patients"
               value={stats.totalPatients}
-              Unit="{0}"
+              unit="{0}"
             />
             <StatCard
               title="Active Patients"
@@ -102,7 +102,7 @@ export function DashboardPage() {
             />
             <StatCard
               title="Avg Adherence"
-              value={stats.avgAdherence}
+              value={stats.averageAdherence}
               unit="%"
             />
             <StatCard

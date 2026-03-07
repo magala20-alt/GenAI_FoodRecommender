@@ -43,6 +43,7 @@ export interface Patient {
   lastReviewDate?: string
   status: 'active' | 'inactive' | 'discharged'
   riskLevel: 'low' | 'medium' | 'high'
+  adherenceScore: number
 }
 
 export interface PatientMealPlan {
@@ -132,10 +133,10 @@ export interface PatientNote {
 export interface DashboardStats {
   totalPatients: number
   activePatients: number
-  patientsWith HighRisk: number
+  highRiskCount: number          // remove patientsWithHighRisk
   averageAdherence: number
   pendingInterventions: number
-  thisWeekReviews: number
+  reviewsThisWeek: number        // remove thisWeekReviews
 }
 
 export interface PatientContextType {

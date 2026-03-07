@@ -28,8 +28,8 @@ function AppRoutes() {
         </>
       ) : (
         <Route element={<AppLayout />}>
-          <Route path="/" element={<DashboardPage />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Route>
       )}
     </Routes>

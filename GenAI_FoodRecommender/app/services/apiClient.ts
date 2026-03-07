@@ -1,3 +1,5 @@
+import { API_BASE_URL } from '../config'
+
 // Base API client with axios-like interface for React Native
 export class ApiClient {
   private baseURL: string
@@ -6,7 +8,7 @@ export class ApiClient {
     'Content-Type': 'application/json',
   }
 
-  constructor(baseURL: string) {
+  constructor(baseURL: string = API_BASE_URL) {
     this.baseURL = baseURL
   }
 
@@ -135,6 +137,5 @@ export class ApiClient {
 }
 
 // Create default instance
-export const apiClient = new ApiClient(
-  'http://localhost:8000/api',
-)
+export const apiClient = new ApiClient()
+
