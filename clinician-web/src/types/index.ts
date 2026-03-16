@@ -139,6 +139,36 @@ export interface DashboardStats {
   reviewsThisWeek: number        // remove thisWeekReviews
 }
 
+export interface Alert {
+  id: number;
+  name: string;
+  issue: string;
+  detail: string;
+  severity: "High" | "Medium";
+}
+
+export interface Meeting {
+  id: number;
+  time: string;
+  period: string;
+  type: string;
+  name: string;
+  mode: string;
+  duration: string;
+  tag: string;
+  tagColor: string;
+  dotColor: string;
+  borderColor: string;
+}
+
+export interface Task {
+  id: number;
+  label: string;
+  done: boolean;
+  tag?: string;
+  tagColor?: string;
+}
+
 export interface PatientContextType {
   patients: Patient[]
   selectedPatient: Patient | null
@@ -152,3 +182,6 @@ export interface PatientContextType {
   createIntervention: (intervention: Omit<Intervention, 'id' | 'createdAt'>) => Promise<void>
   updateInterventionStatus: (interventionId: string, status: Intervention['status']) => Promise<void>
 }
+
+
+

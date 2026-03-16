@@ -7,7 +7,7 @@ export function LoginPage() {
   const navigate = useNavigate()
   const { login, isLoading } = useAuth()
   const [formData, setFormData] = useState<AuthCredentials>({
-    email: 'dr.johnson@hospital.org',
+    email: 'clinician@example.com',
     password: 'password',
   })
   const [error, setError] = useState<string | null>(null)
@@ -77,7 +77,7 @@ export function LoginPage() {
                 onChange={handleChange}
                 disabled={isLoading}
                 className="w-full px-4 py-3 bg-slate-800/50 border border-slate-600/50 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-transparent disabled:opacity-50 transition"
-                placeholder="dr.johnson@hospital.org"
+                placeholder="clinician@example.com"
               />
             </div>
 

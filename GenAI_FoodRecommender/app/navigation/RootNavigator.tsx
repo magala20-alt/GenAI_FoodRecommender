@@ -4,10 +4,11 @@ import { NavigationContainer } from '@react-navigation/native'
 import { useAuth } from '../hooks'
 import { AuthNavigator } from './AuthNavigator'
 import { AppNavigator } from './AppNavigator'
+import { OnboardingNavigator } from './OnboardingNavigator'
 import { Colors } from '../constants/theme'
 
 export const RootNavigator: React.FC = () => {
-  const { isAuthenticated, isLoading } = useAuth()
+  const { isAuthenticated, isLoading, requiresOnboarding } = useAuth()
 
   if (isLoading) {
     return (
@@ -19,7 +20,7 @@ export const RootNavigator: React.FC = () => {
 
   return (
     <NavigationContainer>
-      {isAuthenticated ? <AppNavigator /> : <AuthNavigator />}
+      {!isAuthenticated ? <AuthNavigator /> : requiresOnboarding ? <OnboardingNavigator /> : <AppNavigator />}
     </NavigationContainer>
   )
 }

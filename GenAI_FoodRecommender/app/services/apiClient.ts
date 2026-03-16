@@ -41,10 +41,23 @@ export class ApiClient {
       const response = await fetch(url, options)
 
       if (!response.ok) {
-        if (response.status === 401) {
-          throw new Error('Unauthorized')
+        let message = `HTTP ${response.status}`
+
+        try {
+          const errorPayload = await response.json()
+          if (typeof errorPayload?.detail === 'string') {
+            message = errorPayload.detail
+          } else if (typeof errorPayload?.message === 'string') {
+            message = errorPayload.message
+          }
+        } catch {
+          // Ignore invalid error bodies.
         }
-        throw new Error(`HTTP ${response.status}`)
+
+        if (response.status === 401) {
+          throw new Error(message)
+        }
+        throw new Error(message)
       }
 
       const result = await response.json()

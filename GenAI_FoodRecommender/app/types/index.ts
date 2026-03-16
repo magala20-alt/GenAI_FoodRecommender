@@ -18,6 +18,7 @@ export interface User {
   lastName: string
   userType: 'patient' | 'doctor'
   avatar?: string
+  onboardingCompleted?: boolean
 }
 
 export interface AuthContextType {
@@ -25,14 +26,30 @@ export interface AuthContextType {
   token: string | null
   isLoading: boolean
   isAuthenticated: boolean
+  requiresOnboarding: boolean
   login: (credentials: AuthCredentials) => Promise<void>
   logout: () => Promise<void>
   register: (data: RegisterData) => Promise<void>
+  completeOnboarding: (data: OnboardingSetupData) => Promise<void>
 }
 
 export interface RegisterData extends AuthCredentials {
   firstName: string
   lastName: string
+}
+
+export interface OnboardingSetupData {
+  newPassword: string
+  confirmPassword: string
+  budgetPreference: 'low' | 'medium' | 'high'
+  country: string
+  weight: string
+  height: string
+  bpSystolic: string
+  bpDiastolic: string
+  primaryGoal: 'loseWeight' | 'manageGlucose' | 'improveDiet' | 'allOfAbove'
+  targetWeight?: string
+  cuisinePreferences: string[]
 }
 
 // ============ Meal Plans ============

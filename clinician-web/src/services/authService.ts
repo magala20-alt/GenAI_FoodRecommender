@@ -1,91 +1,96 @@
 import { apiClient } from './apiClient'
 import { AuthCredentials, AuthResponse, User } from '../types'
 
-// Mock data for development
-const mockUser: User = {
-  id: '1',
-  firstName: 'Dr.',
-  lastName: 'Sarah',
-  email: 'clinician@example.com',
-  role: 'clinician',
-  specialty: 'Endocrinology',
-  licenseNumber: 'MD123456',
-  hospitalId: 'hospital-1',
+interface BackendUser {
+  id: string
+  firstName: string
+  lastName: string
+  email: string
+  role: 'clinician' | 'admin' | 'patient'
+  specialty?: string
+  licenseNumber?: string
+  hospitalId?: string
 }
 
-const mockAuthResponse: AuthResponse = {
-  token: 'mock-jwt-token-clinician',
-  refreshToken: 'mock-refresh-token',
-  user: mockUser,
+interface BackendAuthResponse {
+  token: string
+  refreshToken: string
+  user: BackendUser
 }
 
-const USE_MOCK = true
+const mapUser = (user: BackendUser): User => ({
+  id: user.id,
+  firstName: user.firstName,
+  lastName: user.lastName,
+  email: user.email,
+  role: user.role === 'admin' ? 'admin' : 'clinician',
+  specialty: user.specialty,
+  licenseNumber: user.licenseNumber,
+  hospitalId: user.hospitalId,
+})
+
+const mapAuthResponse = (response: BackendAuthResponse): AuthResponse => ({
+  token: response.token,
+  refreshToken: response.refreshToken,
+  user: mapUser(response.user),
+})
+
+const getErrorMessage = (error: unknown): string => {
+  if (typeof error === 'object' && error !== null && 'response' in error) {
+    const response = (error as { response?: { data?: { detail?: string } } }).response
+    if (response?.data?.detail) {
+      return response.data.detail
+    }
+  }
+
+  return error instanceof Error ? error.message : 'Request failed'
+}
 
 export const authService = {
   async login(credentials: AuthCredentials): Promise<AuthResponse> {
-    if (USE_MOCK) {
-      // Simulate network delay
-      await new Promise(resolve => setTimeout(resolve, 800))
-      if (credentials.email === 'clinician@example.com' && credentials.password === 'password') {
-        return mockAuthResponse
-      }
-      throw new Error('Invalid credentials')
-    }
-
     try {
-      const response = await apiClient.post<AuthResponse>('/auth/login', credentials)
+      const response = await apiClient.post<BackendAuthResponse>('/auth/login', credentials)
       apiClient.setToken(response.token)
-      return response
+      return mapAuthResponse(response)
     } catch (error) {
-      throw error
+      throw new Error(getErrorMessage(error))
     }
   },
 
   async logout(): Promise<void> {
     apiClient.clearToken()
-    if (!USE_MOCK) {
+    try {
       await apiClient.post('/auth/logout', {})
+    } catch {
+      // Ignore logout failures once local state is cleared.
     }
   },
 
   async getCurrentUser(): Promise<User> {
-    if (USE_MOCK) {
-      await new Promise(resolve => setTimeout(resolve, 300))
-      return mockUser
-    }
-
     try {
-      return await apiClient.get<User>('/auth/me')
+      const user = await apiClient.get<BackendUser>('/auth/me')
+      return mapUser(user)
     } catch (error) {
-      throw error
+      throw new Error(getErrorMessage(error))
     }
   },
 
   async updateProfile(updates: Partial<User>): Promise<User> {
-    if (USE_MOCK) {
-      await new Promise(resolve => setTimeout(resolve, 500))
-      return { ...mockUser, ...updates }
-    }
-
     try {
-      return await apiClient.put<User>('/auth/profile', updates)
+      const user = await apiClient.put<BackendUser>('/auth/profile', updates)
+      return mapUser(user)
     } catch (error) {
-      throw error
+      throw new Error(getErrorMessage(error))
     }
   },
 
   async refreshToken(refreshToken: string): Promise<AuthResponse> {
-    if (USE_MOCK) {
-      await new Promise(resolve => setTimeout(resolve, 300))
-      return mockAuthResponse
-    }
-
     try {
-      const response = await apiClient.post<AuthResponse>('/auth/refresh', { refreshToken })
+      const response = await apiClient.post<BackendAuthResponse>('/auth/refresh', { refreshToken })
       apiClient.setToken(response.token)
-      return response
+      return mapAuthResponse(response)
     } catch (error) {
-      throw error
+      throw new Error(getErrorMessage(error))
     }
   },
 }

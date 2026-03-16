@@ -12,8 +12,8 @@ export function PatientCard({ patient }: PatientCardProps) {
     <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200 hover:shadow-lg transition">
       <div className="flex items-start justify-between mb-4">
         <div>
-          <h3 className="text-lg font-bold text-gray-900">{patient.name}</h3>
-          <p className="text-sm text-gray-600">Age: {patient.age}</p>
+          <h3 className="text-lg font-bold text-gray-900">{patient.firstName} {patient.lastName}</h3>
+          <p className="text-sm text-gray-600">DOB: {patient.dateOfBirth}</p>
         </div>
         <span className={`${riskBgColor} ${riskTextColor} text-xs font-bold px-3 py-1 rounded-full`}>
           {patient.riskLevel.toUpperCase()}
@@ -43,7 +43,7 @@ export function PatientCard({ patient }: PatientCardProps) {
         <div className="grid grid-cols-2 gap-3 text-sm">
           <div>
             <p className="text-xs text-gray-500">Condition</p>
-            <p className="font-medium text-gray-900">{patient.condition}</p>
+            <p className="font-medium text-gray-900">{patient.diabetesType.toUpperCase()}</p>
           </div>
           <div>
             <p className="text-xs text-gray-500">Status</p>

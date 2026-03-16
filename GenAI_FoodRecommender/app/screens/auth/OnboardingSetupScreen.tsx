@@ -8,34 +8,22 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  Picker,
 } from 'react-native'
 import { Colors, Spacing, BorderRadius, Typography } from '../../constants/theme'
 import { Button, TextInput } from '../../components/atoms'
-
-interface OnboardingData {
-  newPassword: string
-  confirmPassword: string
-  budgetPreference: 'low' | 'medium' | 'high'
-  country: string
-  weight: string
-  height: string
-  bpSystolic: string
-  bpDiastolic: string
-  primaryGoal: 'loseWeight' | 'manageGlucose' | 'improveDiet' | 'allOfAbove'
-  targetWeight: string
-  cuisinePreferences: string[]
-}
+import { useAuth } from '../../hooks'
+import { OnboardingSetupData } from '../../types'
 
 interface OnboardingSetupScreenProps {
   onComplete?: () => void
 }
 
 export function OnboardingSetupScreen({ onComplete }: OnboardingSetupScreenProps) {
+  const { completeOnboarding } = useAuth()
   const [currentStep, setCurrentStep] = useState(1)
   const [isLoading, setIsLoading] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
-  const [data, setData] = useState<Partial<OnboardingData>>({
+  const [data, setData] = useState<Partial<OnboardingSetupData>>({
     budgetPreference: 'medium',
     country: 'Ghana',
     primaryGoal: 'allOfAbove',
@@ -81,18 +69,17 @@ export function OnboardingSetupScreen({ onComplete }: OnboardingSetupScreenProps
     if (validateStep(4)) {
       setIsLoading(true)
       try {
-        // Call API to complete onboarding
-        console.log('Onboarding complete:', data)
+        await completeOnboarding(data as OnboardingSetupData)
         onComplete?.()
       } catch (error) {
-        setErrors({ submit: 'Failed to complete setup' })
+        setErrors({ submit: error instanceof Error ? error.message : 'Failed to complete setup' })
       } finally {
         setIsLoading(false)
       }
     }
   }
 
-  const updateData = (key: keyof OnboardingData, value: any) => {
+  const updateData = (key: keyof OnboardingSetupData, value: any) => {
     setData(prev => ({ ...prev, [key]: value }))
     if (errors[key]) {
       setErrors(prev => ({ ...prev, [key]: '' }))

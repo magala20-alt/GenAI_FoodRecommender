@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './hooks'
 import { LoginPage } from './pages/LoginPage'
 import { DashboardPage } from './pages/DashboardPage'
+import { PatientOnboardingPage } from './pages/PatientOnboardingPage'
 import { AppLayout } from './components/AppLayout'
 
 function AppRoutes() {
@@ -29,6 +30,8 @@ function AppRoutes() {
       ) : (
         <Route element={<AppLayout />}>
           <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/patients" element={<PatientOnboardingPage />} />
+          <Route path="/patients/onboard" element={<PatientOnboardingPage />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Route>
       )}

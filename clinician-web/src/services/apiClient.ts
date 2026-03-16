@@ -63,4 +63,6 @@ export class ApiClient {
 }
 
 // Create default instance
-export const apiClient = new ApiClient('http://localhost:8000/api')
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api'
+
+export const apiClient = new ApiClient(API_BASE_URL)
