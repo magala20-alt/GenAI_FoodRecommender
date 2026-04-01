@@ -11,12 +11,18 @@ This backend uses FastAPI, SQLAlchemy, JWT auth, and PostgreSQL.
 - Patient onboarding completion
 - Demo seed users for local development
 
-## Demo accounts
+## Default admin account
 
-- Clinician: `clinician@example.com` / `password`
-- Patient: `patient@example.com` / `password`
+The backend now seeds a single admin account (and removes old demo users):
 
-The patient account is seeded with `onboardingCompleted = false`, so the mobile app will route into onboarding after login.
+- Admin: `admin@caresync.com` / `Admin@12345`
+
+You can override these credentials in `.env`:
+
+- `ADMIN_EMAIL`
+- `ADMIN_PASSWORD`
+- `ADMIN_FIRST_NAME`
+- `ADMIN_LAST_NAME`
 
 ## Run locally
 
@@ -67,6 +73,3 @@ docker run --name caresync-postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB
 - Web app default base URL: `http://localhost:8000/api`
 - Mobile app base URL: set the IP in `GenAI_FoodRecommender/app/config.ts` to your machine's LAN IP when testing on a real device
 
-## Next step after this scaffold
-
-Add Alembic migrations once the schema stabilizes. Right now the backend creates tables on startup and seeds demo users for development.

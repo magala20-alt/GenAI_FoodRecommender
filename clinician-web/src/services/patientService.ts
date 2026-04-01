@@ -1,6 +1,51 @@
 import { apiClient } from './apiClient'
 import { Patient, PatientMealPlan, PatientGlucoseReading, Intervention, AISummary } from '../types'
 
+export interface ClinicianPatientListItem {
+  id: string
+  firstName: string
+  lastName: string
+  email: string
+  age: number | null
+  riskLevel: 'High' | 'Medium' | 'Low' | null
+  adherence: number | null
+  alerts: string | null
+}
+
+// this links used to link to the database schema
+export interface ClinicianPatientProfile {
+  id: string
+  firstName: string
+  lastName: string
+  email: string
+  age: number | null
+  gender: string | null
+  riskLevel: 'High' | 'Medium' | 'Low' | null
+  adherence: number | null
+  alerts: string | null
+  onboardedDate: string | null
+  calorieTarget: number | null
+  primaryGoal: string | null
+  budgetPreference: string | null
+  country: string | null
+  weightKg: number | null
+  heightCm: number | null
+  bpSystolic: number | null
+  bpDiastolic: number | null
+  heartRate: number | null
+  cholesterolTotal: number | null
+  hdlCholesterol: number | null
+  ldlCholesterol: number | null
+  triglycerides: number | null
+  phoneNumber: string | null
+  emergencyContactFullName: string | null
+  emergencyContactRelationship: string | null
+  emergencyContactPhone: string | null
+  cuisinePreferences: string[]
+  dietaryRestrictions: string[]
+  prescribedMedications: string[]
+}
+
 // Mock data
 const mockPatients: Patient[] = [
   {
@@ -91,9 +136,17 @@ const mockInterventions: Record<string, Intervention[]> = {
   ],
 }
 
-const USE_MOCK = true
+const USE_MOCK = false
 
 export const patientService = {
+  async getPatientListForClinician(): Promise<ClinicianPatientListItem[]> {
+    return apiClient.get<ClinicianPatientListItem[]>('/patients')
+  },
+
+  async getPatientProfileForClinician(patientId: string): Promise<ClinicianPatientProfile> {
+    return apiClient.get<ClinicianPatientProfile>(`/patients/${patientId}`)
+  },
+
   async getPatients(): Promise<Patient[]> {
     if (USE_MOCK) {
       await new Promise(resolve => setTimeout(resolve, 600))

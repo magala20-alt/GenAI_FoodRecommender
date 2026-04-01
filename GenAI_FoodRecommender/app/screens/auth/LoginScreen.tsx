@@ -11,7 +11,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient'
 import { useAuth } from '../../hooks'
 import { Button, TextInput } from '../../components/atoms'
-import { Colors, Typography, Spacing, BorderRadius } from '../../constants/theme'
+import { Colors, Typography, Spacing, BorderRadius, moderateScale, scale } from '../../constants/theme'
 import { validateEmail, validatePassword } from '../../utils'
 
 interface LoginScreenProps {
@@ -21,8 +21,8 @@ interface LoginScreenProps {
 export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
   const { login, isLoading } = useAuth()
 
-  const [email, setEmail] = useState('patient@example.com')
-  const [password, setPassword] = useState('password')
+  const [email, setEmail] = useState('admin@caresync.com')
+  const [password, setPassword] = useState('Admin@12345')
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [apiError, setApiError] = useState<string | null>(null)
 
@@ -185,23 +185,23 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xxl,
   },
   iconContainer: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
+    width: scale(70),
+    height: scale(70),
+    borderRadius: scale(35),
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: Spacing.lg,
   },
   icon: {
-    fontSize: 40,
+    fontSize: moderateScale(40, 0.45),
   },
   appName: {
     fontSize: Typography.sizes.h2,
     fontWeight: Typography.weights.bold as any,
     color: '#ffffff',
     marginBottom: Spacing.sm,
-    letterSpacing: 2,
+    letterSpacing: scale(2),
   },
   tagline: {
     fontSize: Typography.sizes.bodySmall,
@@ -250,7 +250,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   inputIcon: {
-    fontSize: 18,
+    fontSize: Typography.sizes.body,
     marginRight: Spacing.sm,
   },
   input: {

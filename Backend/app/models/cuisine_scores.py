@@ -1,13 +1,13 @@
 from datetime import UTC, datetime
-from enum import StrEnum
 from uuid import uuid4
 
-from sqlalchemy import Boolean, DateTime, Enum, Float, Integer, String, Text, ForeignKey
+from sqlalchemy import DateTime, Float, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
 
-# This module defines the cuisine scores and tracks evolving tastes for the user.
+
+# This module defines cuisine scores and tracks evolving tastes for each user.
 class CuisineScore(Base):
     __tablename__ = "cuisine_scores"
 

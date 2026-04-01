@@ -9,7 +9,7 @@ import {
   Platform,
   ActivityIndicator,
 } from 'react-native'
-import { Colors, Spacing, BorderRadius, Typography } from '../../constants/theme'
+import { Colors, Spacing, BorderRadius, Typography, scale, moderateScale } from '../../constants/theme'
 import { Button, TextInput } from '../../components/atoms'
 import { useAuth } from '../../hooks'
 import { OnboardingSetupData } from '../../types'
@@ -471,9 +471,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   stepDot: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: scale(40),
+    height: scale(40),
+    borderRadius: scale(20),
     backgroundColor: Colors.light,
     justifyContent: 'center',
     alignItems: 'center',
@@ -551,7 +551,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.primary,
   },
   budgetIcon: {
-    fontSize: 24,
+    fontSize: Typography.sizes.h3,
     marginBottom: Spacing.xs,
   },
   budgetText: {
@@ -605,7 +605,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.primary,
   },
   goalIcon: {
-    fontSize: 24,
+    fontSize: Typography.sizes.h3,
     marginRight: Spacing.md,
   },
   goalText: {
@@ -648,9 +648,9 @@ const styles = StyleSheet.create({
     marginVertical: Spacing.md,
   },
   strengthBar: {
-    height: 4,
+    height: scale(4),
     backgroundColor: Colors.lightGray,
-    borderRadius: 2,
+    borderRadius: scale(2),
     marginBottom: Spacing.sm,
   },
   strengthText: {

@@ -1,0 +1,4 @@
+alert_id,patient_id,alert_date,alert_type,severity,alert_message,status,resolved_date,clinician_response
+A001,P002,2024-01-25,high_bp,High,"BP > 130/80 for 10 consecutive days",resolved,2024-01-28,"Medication reviewed"
+A002,P002,2024-02-10,low_adherence,Medium,"Food logging dropped below 50%",pending,,
+A003,P005,2024-01-28,risk_increase,Medium,"Risk score stable but elevated",resolved,2024-01-30,"Lifestyle counseling scheduled"

@@ -11,6 +11,7 @@ class UserRead(BaseModel):
     last_name: str = Field(alias="lastName")
     role: str
     onboarding_completed: bool = Field(alias="onboardingCompleted")
+    must_change_password: bool = Field(alias="mustChangePassword")
     specialty: str | None = None
     license_number: str | None = Field(default=None, alias="licenseNumber")
     hospital_id: str | None = Field(default=None, alias="hospitalId")

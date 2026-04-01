@@ -1,3 +1,34 @@
+import { Dimensions, PixelRatio } from 'react-native'
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window')
+const BASE_WIDTH = 390
+const BASE_HEIGHT = 844
+const MIN_SCALE = 0.92
+const MAX_SCALE = 1.12
+
+const clamp = (value: number, min: number, max: number): number => {
+  return Math.min(Math.max(value, min), max)
+}
+
+const widthScaleFactor = clamp(SCREEN_WIDTH / BASE_WIDTH, MIN_SCALE, MAX_SCALE)
+const heightScaleFactor = clamp(SCREEN_HEIGHT / BASE_HEIGHT, MIN_SCALE, MAX_SCALE)
+
+const roundToNearestPixel = (value: number): number => {
+  return PixelRatio.roundToNearestPixel(value)
+}
+
+export const scale = (size: number): number => {
+  return roundToNearestPixel(size * widthScaleFactor)
+}
+
+export const verticalScale = (size: number): number => {
+  return roundToNearestPixel(size * heightScaleFactor)
+}
+
+export const moderateScale = (size: number, factor = 0.5): number => {
+  return roundToNearestPixel(size + (scale(size) - size) * factor)
+}
+
 // Color Palette - Warm, encouraging, and human
 // Design: Soft palette with warm white background, teal accent, gentle amber warnings
 export const Colors = {
@@ -41,6 +72,8 @@ export const Colors = {
   // UI Elements
   border: '#E5E7EB',
   divider: '#F3F4F6',
+  surfaceLight: '#F9FAFB',
+  error: '#EF4444',
   
   // Overlays (for modals, dimming)
   overlay: 'rgba(0, 0, 0, 0.5)',
@@ -54,24 +87,24 @@ export const Colors = {
 
 // Spacing scale
 export const Spacing = {
-  xs: 4,
-  sm: 8,
-  md: 12,
-  lg: 16,
-  xl: 24,
-  xxl: 32,
+  xs: scale(4),
+  sm: scale(8),
+  md: scale(12),
+  lg: scale(16),
+  xl: scale(24),
+  xxl: scale(32),
 }
 
 // Typography
 export const Typography = {
   sizes: {
-    h1: 32,
-    h2: 28,
-    h3: 24,
-    h4: 20,
-    body: 16,
-    bodySmall: 14,
-    caption: 12,
+    h1: moderateScale(32, 0.45),
+    h2: moderateScale(28, 0.45),
+    h3: moderateScale(24, 0.45),
+    h4: moderateScale(20, 0.45),
+    body: moderateScale(16, 0.4),
+    bodySmall: moderateScale(14, 0.4),
+    caption: moderateScale(12, 0.35),
   },
   weights: {
     regular: '400',
@@ -83,11 +116,11 @@ export const Typography = {
 
 // Border Radius - Rounded, friendly design (16 is main for cards)
 export const BorderRadius = {
-  sm: 4,
-  md: 8,
-  lg: 12,
-  xl: 16,    // Main card radius (generous, rounded)
-  xxl: 20,
+  sm: scale(4),
+  md: scale(8),
+  lg: scale(12),
+  xl: scale(16),    // Main card radius (generous, rounded)
+  xxl: scale(20),
   circular: 999,
 }
 
@@ -95,24 +128,24 @@ export const BorderRadius = {
 export const Shadows = {
   sm: {
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: verticalScale(2) },
     shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 2,
+    shadowRadius: scale(3),
+    elevation: scale(2),
   },
   md: {
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: verticalScale(4) },
     shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
+    shadowRadius: scale(8),
+    elevation: scale(5),
   },
   lg: {
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
+    shadowOffset: { width: 0, height: verticalScale(8) },
     shadowOpacity: 0.15,
-    shadowRadius: 16,
-    elevation: 8,
+    shadowRadius: scale(16),
+    elevation: scale(8),
   },
 }
 

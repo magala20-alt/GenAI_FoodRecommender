@@ -1,4 +1,4 @@
-import { apiClient } from './apiClient'
+import { apiClient, API_BASE_URL } from './apiClient'
 import { AuthCredentials, AuthResponse, User } from '../types'
 
 interface BackendUser {
@@ -7,6 +7,7 @@ interface BackendUser {
   lastName: string
   email: string
   role: 'clinician' | 'admin' | 'patient'
+  mustChangePassword?: boolean
   specialty?: string
   licenseNumber?: string
   hospitalId?: string
@@ -24,6 +25,7 @@ const mapUser = (user: BackendUser): User => ({
   lastName: user.lastName,
   email: user.email,
   role: user.role === 'admin' ? 'admin' : 'clinician',
+  mustChangePassword: user.mustChangePassword,
   specialty: user.specialty,
   licenseNumber: user.licenseNumber,
   hospitalId: user.hospitalId,
@@ -40,6 +42,13 @@ const getErrorMessage = (error: unknown): string => {
     const response = (error as { response?: { data?: { detail?: string } } }).response
     if (response?.data?.detail) {
       return response.data.detail
+    }
+  }
+
+  if (typeof error === 'object' && error !== null && 'message' in error) {
+    const message = String((error as { message?: unknown }).message || '')
+    if (message.toLowerCase().includes('network error')) {
+      return `Cannot reach backend at ${API_BASE_URL}. Confirm backend is running and CORS allows this origin.`
     }
   }
 
@@ -89,6 +98,18 @@ export const authService = {
       const response = await apiClient.post<BackendAuthResponse>('/auth/refresh', { refreshToken })
       apiClient.setToken(response.token)
       return mapAuthResponse(response)
+    } catch (error) {
+      throw new Error(getErrorMessage(error))
+    }
+  },
+
+  async changePassword(currentPassword: string, newPassword: string): Promise<User> {
+    try {
+      const user = await apiClient.post<BackendUser>('/auth/change-password', {
+        currentPassword,
+        newPassword,
+      })
+      return mapUser(user)
     } catch (error) {
       throw new Error(getErrorMessage(error))
     }

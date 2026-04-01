@@ -1,0 +1,31 @@
+log_id,patient_id,date,meal_type,food_item,healthy_flag,carbs_g,fiber_g,portion_size,calories
+F001,P001,2024-01-16,breakfast,Oatmeal with berries,TRUE,30,5,1 cup,250
+F002,P001,2024-01-16,lunch,Grilled chicken salad,TRUE,15,6,1 bowl,350
+F003,P001,2024-01-16,afternoon_snack,Apple,TRUE,15,4,1 medium,95
+F004,P001,2024-01-16,dinner,Salmon with roasted vegetables,TRUE,20,7,1 serving,450
+F005,P001,2024-01-17,breakfast,Greek yogurt with honey,TRUE,20,2,1 cup,180
+F006,P001,2024-01-17,lunch,Turkey sandwich on whole wheat,TRUE,35,5,1 sandwich,400
+F007,P001,2024-01-17,afternoon_snack,Handful of almonds,TRUE,6,3,1 oz,160
+F008,P001,2024-01-17,dinner,Chicken stir-fry,TRUE,25,5,1 serving,400
+F009,P001,2024-01-18,breakfast,Whole grain toast with avocado,TRUE,25,6,2 slices,320
+F010,P001,2024-01-18,lunch,Quinoa bowl with vegetables,TRUE,40,8,1 bowl,380
+F011,P001,2024-01-18,afternoon_snack,Carrot sticks,TRUE,5,2,1 cup,50
+F012,P001,2024-01-18,dinner,Baked cod with asparagus,TRUE,15,4,1 serving,350
+F013,P001,2024-01-19,breakfast,Smoothie with spinach and berries,TRUE,35,7,16 oz,280
+F014,P001,2024-01-19,lunch,Lentil soup,TRUE,30,8,1 bowl,320
+F015,P001,2024-01-19,afternoon_snack,Yogurt,TRUE,12,1,1 container,120
+F016,P001,2024-01-19,dinner,Grilled shrimp with quinoa,TRUE,35,5,1 serving,420
+F017,P001,2024-01-20,breakfast,Eggs with whole grain toast,TRUE,25,4,2 eggs,350
+F018,P001,2024-01-20,lunch,Salad with chickpeas,TRUE,30,9,1 bowl,380
+F019,P001,2024-01-20,afternoon_snack,Orange,TRUE,12,3,1 medium,62
+F020,P001,2024-01-20,dinner,Vegetable curry with brown rice,TRUE,45,8,1 serving,420
+F021,P002,2024-01-16,breakfast,Sugary cereal,FALSE,45,1,1 bowl,320
+F022,P002,2024-01-16,lunch,Fast food burger,FALSE,45,2,1 burger,550
+F023,P002,2024-01-16,afternoon_snack,Chips,FALSE,20,1,1 bag,160
+F024,P002,2024-01-16,dinner,Pasta with cream sauce,FALSE,70,3,1 serving,650
+F025,P002,2024-01-17,breakfast,Donut,FALSE,35,1,1 donut,280
+F026,P002,2024-01-17,lunch,Pizza slice,FALSE,40,2,2 slices,700
+F027,P002,2024-01-17,afternoon_snack,Cookie,FALSE,18,0,2 cookies,180
+F028,P002,2024-01-17,dinner,Fried chicken with fries,FALSE,60,2,1 serving,850
+F029,P002,2024-01-18,breakfast,Toast with butter,FALSE,25,1,2 slices,200
+F030,P002,2024-01-18,lunch,Hot dog,FALSE,30,1,1 sandwich,290

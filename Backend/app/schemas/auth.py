@@ -32,6 +32,29 @@ class ProfileUpdateRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
+class ChangePasswordRequest(BaseModel):
+    current_password: str = Field(alias="currentPassword")
+    new_password: str = Field(alias="newPassword")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class AdminCreateClinicianRequest(BaseModel):
+    first_name: str = Field(alias="firstName")
+    last_name: str = Field(alias="lastName")
+    email: EmailStr
+    temporary_password: str | None = Field(default=None, alias="temporaryPassword")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class AdminCreateClinicianResponse(BaseModel):
+    user: UserRead
+    temporary_password: str = Field(alias="temporaryPassword")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 class AuthResponse(BaseModel):
     token: str
     refresh_token: str = Field(alias="refreshToken")

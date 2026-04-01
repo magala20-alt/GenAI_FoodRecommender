@@ -22,7 +22,7 @@ export function Badge({
       case 'warning':
         return { bg: Colors.warning, text: Colors.text.inverse }
       case 'error':
-        return { bg: Colors.error, text: Colors.text.inverse }
+        return { bg: Colors.danger, text: Colors.text.inverse }
       case 'info':
         return { bg: Colors.primary, text: Colors.text.inverse }
       case 'neutral':

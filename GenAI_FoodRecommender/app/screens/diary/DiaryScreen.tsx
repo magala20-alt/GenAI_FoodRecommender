@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   FlatList,
 } from 'react-native'
-import { Colors, Spacing, BorderRadius, Typography } from '../../constants/theme'
+import { Colors, Spacing, BorderRadius, Typography, moderateScale, scale } from '../../constants/theme'
 import { Button } from '../../components/atoms'
 
 interface LoggedMeal {
@@ -223,7 +223,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: Colors.lightGray,
     alignItems: 'center',
-    minWidth: 60,
+    minWidth: scale(60),
   },
   dateButtonActive: {
     backgroundColor: Colors.primary,
@@ -282,9 +282,9 @@ const styles = StyleSheet.create({
     marginTop: Spacing.sm,
   },
   progressBar: {
-    height: 8,
+    height: scale(8),
     backgroundColor: Colors.light,
-    borderRadius: 4,
+    borderRadius: scale(4),
     overflow: 'hidden',
   },
   progressBarFill: {
@@ -347,7 +347,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   vitalIcon: {
-    fontSize: 28,
+    fontSize: Typography.sizes.h2,
     marginBottom: Spacing.sm,
   },
   vitalValue: {
@@ -369,7 +369,7 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.xl,
   },
   emptyIcon: {
-    fontSize: 48,
+    fontSize: moderateScale(48, 0.45),
     marginBottom: Spacing.md,
   },
   emptyText: {

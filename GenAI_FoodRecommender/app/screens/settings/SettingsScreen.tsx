@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   Switch,
 } from 'react-native'
-import { Colors, Spacing, BorderRadius, Typography } from '../../constants/theme'
+import { Colors, Spacing, BorderRadius, Typography, moderateScale, scale } from '../../constants/theme'
 import { useAuth } from '../../hooks'
 
 export function SettingsScreen() {
@@ -220,7 +220,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: Colors.text.secondary,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: scale(0.5),
     marginBottom: Spacing.md,
   },
 
@@ -234,15 +234,15 @@ const styles = StyleSheet.create({
     gap: Spacing.lg,
   },
   avatarContainer: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: scale(60),
+    height: scale(60),
+    borderRadius: scale(30),
     backgroundColor: Colors.primaryTint,
     justifyContent: 'center',
     alignItems: 'center',
   },
   avatar: {
-    fontSize: 32,
+    fontSize: Typography.sizes.h1,
   },
   profileName: {
     fontSize: Typography.sizes.body,
@@ -255,15 +255,15 @@ const styles = StyleSheet.create({
     marginTop: Spacing.xs,
   },
   editButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: scale(40),
+    height: scale(40),
+    borderRadius: scale(20),
     backgroundColor: Colors.light,
     justifyContent: 'center',
     alignItems: 'center',
   },
   editIcon: {
-    fontSize: 18,
+    fontSize: Typography.sizes.body,
   },
 
   listItem: {
@@ -277,7 +277,7 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
   },
   listIcon: {
-    fontSize: 24,
+    fontSize: Typography.sizes.h3,
   },
   listLabel: {
     fontSize: Typography.sizes.body,
@@ -315,7 +315,7 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
   },
   logoutIcon: {
-    fontSize: 24,
+    fontSize: Typography.sizes.h3,
   },
   logoutText: {
     fontSize: Typography.sizes.body,

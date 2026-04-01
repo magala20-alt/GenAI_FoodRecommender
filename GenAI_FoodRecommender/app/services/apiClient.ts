@@ -63,6 +63,9 @@ export class ApiClient {
       const result = await response.json()
       return result as T
     } catch (error) {
+      if (error instanceof TypeError && error.message.toLowerCase().includes('network request failed')) {
+        console.error(`[${method}] ${endpoint}: Network request failed. API base URL: ${this.baseURL}`)
+      }
       console.error(`[${method}] ${endpoint}:`, error)
       throw error
     }

@@ -2,12 +2,20 @@ import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './hooks'
 import { LoginPage } from './pages/LoginPage'
+import { ChangePasswordPage } from './pages/ChangePasswordPage'
 import { DashboardPage } from './pages/DashboardPage'
+import { SchedulePage } from './pages/SchedulePage'
+import { AlertsPage } from './pages/AlertsPage'
+import { AISummariesPage } from './pages/AISummariesPage'
+import { PatientListPage } from './pages/PatientListPage'
 import { PatientOnboardingPage } from './pages/PatientOnboardingPage'
+import { PatientProfilePage } from './pages/PatientProfilePage'
+import { AdminDoctorOnboardingPage } from './pages/AdminDoctorOnboardingPage'
 import { AppLayout } from './components/AppLayout'
 
 function AppRoutes() {
   const { user, isLoading } = useAuth()
+  const requiresPasswordChange = !!user?.mustChangePassword
 
   if (isLoading) {
     return (
@@ -28,12 +36,24 @@ function AppRoutes() {
           <Route path="*" element={<Navigate to="/login" replace />} />
         </>
       ) : (
-        <Route element={<AppLayout />}>
-          <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/patients" element={<PatientOnboardingPage />} />
-          <Route path="/patients/onboard" element={<PatientOnboardingPage />} />
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
-        </Route>
+        <>
+          <Route path="/change-password" element={<ChangePasswordPage />} />
+          {requiresPasswordChange ? (
+            <Route path="*" element={<Navigate to="/change-password" replace />} />
+          ) : (
+            <Route element={<AppLayout />}>
+              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/schedule" element={<SchedulePage />} />
+              <Route path="/alerts" element={<AlertsPage />} />
+              <Route path="/ai-summaries" element={<AISummariesPage />} />
+              <Route path="/patients" element={<PatientListPage />} />
+              <Route path="/patients/onboard" element={<PatientOnboardingPage />} />
+              <Route path="/patients/:patientId" element={<PatientProfilePage />} />
+              <Route path="/admin/doctors/onboard" element={<AdminDoctorOnboardingPage />} />
+              <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            </Route>
+          )}
+        </>
       )}
     </Routes>
   )

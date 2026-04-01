@@ -13,6 +13,11 @@ class Settings(BaseSettings):
     database_url: str = Field(default="sqlite:///./caresync.db", alias="DATABASE_URL")
     sqlalchemy_echo: bool = Field(default=False, alias="SQLALCHEMY_ECHO")
     bootstrap_demo_data: bool = Field(default=True, alias="BOOTSTRAP_DEMO_DATA")
+    admin_email: str = Field(default="admin@caresync.com", alias="ADMIN_EMAIL")
+    admin_password: str = Field(default="Admin@12345", alias="ADMIN_PASSWORD")
+    admin_first_name: str = Field(default="System", alias="ADMIN_FIRST_NAME")
+    admin_last_name: str = Field(default="Administrator", alias="ADMIN_LAST_NAME")
+    clinician_default_password: str = Field(default="Doctor@12345", alias="CLINICIAN_DEFAULT_PASSWORD")
 
     # CORS origins allowed for cross-origin requests from the frontend.
     cors_origins: list[str] = [
@@ -29,7 +34,19 @@ class Settings(BaseSettings):
         "http://10.231.28.226:8081",
         "exp://10.231.28.226:19000",
     ]
+    cors_origin_regex: str = Field(
+        default=r"^https?://(localhost|127\.0\.0\.1|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+)(:\d+)?$",
+        alias="CORS_ORIGIN_REGEX",
+    )
 
+    # RAG & LLM Configuration
+    llm_provider: str = Field(default="openai", alias="LLM_PROVIDER")  # "openai" or "anthropic"
+    llm_api_key: str = Field(default="", alias="LLM_API_KEY")
+    llm_model: str = Field(default="gpt-4", alias="LLM_MODEL")
+    llm_temperature: float = Field(default=0.7, alias="LLM_TEMPERATURE")
+    embedding_model: str = Field(default="all-MiniLM-L6-v2", alias="EMBEDDING_MODEL")  # HuggingFace model
+    vector_db_dimension: int = Field(default=384, alias="VECTOR_DB_DIMENSION")
+    max_retrieved_items: int = Field(default=5, alias="MAX_RETRIEVED_ITEMS")
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", populate_by_name=True)
 

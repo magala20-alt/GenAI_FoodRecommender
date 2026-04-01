@@ -29,6 +29,7 @@ class User(Base):
     license_number: Mapped[str | None] = mapped_column(String(120), nullable=True)
     hospital_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    must_change_password: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -37,10 +38,13 @@ class User(Base):
     )
 
     onboarding = relationship("PatientOnboarding", back_populates="user", uselist=False)
+    meal_history = relationship("MealHistory", back_populates="user")
+    user_metrics = relationship("UserMetrics", back_populates="user")
+    cuisine_scores = relationship("CuisineScore", back_populates="user")
 
     @property
     def onboarding_completed(self) -> bool:
-        """Clinicians are always considered onboarded; patients are onboarded when completed_at is set."""
+        """Clinicians and admins are always considered onboarded; patients are onboarded when completed_at is set."""
         if self.role != UserRole.PATIENT:
             return True
         return self.onboarding is not None and self.onboarding.completed_at is not None

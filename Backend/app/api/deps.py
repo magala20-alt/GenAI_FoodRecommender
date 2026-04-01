@@ -31,3 +31,9 @@ def get_current_patient(current_user: User = Depends(get_current_user)) -> User:
     if current_user.role != UserRole.PATIENT:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Patient access required")
     return current_user
+
+
+def get_current_admin(current_user: User = Depends(get_current_user)) -> User:
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    return current_user

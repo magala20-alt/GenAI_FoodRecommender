@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
   FlatList,
 } from 'react-native'
-import { Colors, Spacing, BorderRadius, Typography } from '../../constants/theme'
+import { Colors, Spacing, BorderRadius, Typography, moderateScale, scale, verticalScale } from '../../constants/theme'
 import { useAuth, useMealPlan } from '../../hooks'
 import { Button } from '../../components/atoms'
 import { MealCard } from '../../components/molecules'
@@ -215,7 +215,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   streakIcon: {
-    fontSize: 20,
+    fontSize: Typography.sizes.h4,
   },
   streakText: {
     fontSize: Typography.sizes.caption,
@@ -233,7 +233,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   doctorIcon: {
-    fontSize: 24,
+    fontSize: Typography.sizes.h3,
     marginRight: Spacing.md,
   },
   doctorTitle: {
@@ -245,10 +245,10 @@ const styles = StyleSheet.create({
   doctorMessage: {
     fontSize: Typography.sizes.body,
     color: 'rgba(255, 255, 255, 0.95)',
-    lineHeight: 22,
+    lineHeight: verticalScale(22),
   },
   dismissIcon: {
-    fontSize: 20,
+    fontSize: Typography.sizes.h4,
     color: Colors.white,
     fontWeight: 'bold',
   },
@@ -337,7 +337,7 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
   },
   skeletonBar: {
-    height: 100,
+    height: verticalScale(100),
     backgroundColor: Colors.light,
     borderRadius: BorderRadius.lg,
   },
@@ -349,7 +349,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   emptyIcon: {
-    fontSize: 48,
+    fontSize: moderateScale(48, 0.45),
     marginBottom: Spacing.md,
   },
   emptyText: {
@@ -368,14 +368,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   encouragementIcon: {
-    fontSize: 24,
+    fontSize: Typography.sizes.h3,
     marginRight: Spacing.md,
   },
   encouragementText: {
     fontSize: Typography.sizes.body,
     color: Colors.text.primary,
     flex: 1,
-    lineHeight: 22,
+    lineHeight: verticalScale(22),
   },
 
   appointmentCard: {

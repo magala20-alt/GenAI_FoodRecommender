@@ -6,7 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
 } from 'react-native'
-import { Colors, Spacing, BorderRadius, Typography } from '../../constants/theme'
+import { Colors, Spacing, BorderRadius, Typography, moderateScale, scale, verticalScale } from '../../constants/theme'
 
 interface ProgressData {
   weight: number
@@ -262,7 +262,7 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
   },
   summaryIcon: {
-    fontSize: 28,
+    fontSize: Typography.sizes.h2,
     marginBottom: Spacing.sm,
   },
   summaryLabel: {
@@ -306,7 +306,7 @@ const styles = StyleSheet.create({
     padding: Spacing.xl,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 180,
+    minHeight: verticalScale(180),
     marginBottom: Spacing.md,
   },
   chartPlaceholderText: {
@@ -336,10 +336,10 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
   },
   adherenceBar: {
-    height: 6,
+    height: scale(6),
     backgroundColor: Colors.light,
-    borderRadius: 3,
-    width: 100,
+    borderRadius: scale(3),
+    width: scale(100),
   },
   adherenceFill: {
     height: '100%',
@@ -362,7 +362,7 @@ const styles = StyleSheet.create({
     gap: Spacing.lg,
   },
   insightIcon: {
-    fontSize: 28,
+    fontSize: Typography.sizes.h2,
   },
   insightTitle: {
     fontSize: Typography.sizes.body,
@@ -373,6 +373,6 @@ const styles = StyleSheet.create({
   insightText: {
     fontSize: Typography.sizes.bodySmall,
     color: Colors.text.secondary,
-    lineHeight: 20,
+    lineHeight: verticalScale(20),
   },
 })

@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from uuid import uuid4
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import Boolean, DateTime, Enum, Float, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -19,6 +20,13 @@ class Meals(Base):
     carbs_g: Mapped[float | None] = mapped_column(Float, nullable=True)
     fat_g: Mapped[float | None] = mapped_column(Float, nullable=True)
     prep_time_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    
+     # For RAG - formatted text used for embedding generation
+    llm_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    
+    # Vector embedding for similarity search
+    embedding: Mapped[Vector] = mapped_column(Vector(384), nullable=True)
+    
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

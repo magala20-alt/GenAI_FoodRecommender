@@ -52,6 +52,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, [])
 
+  const changePassword = useCallback(async (currentPassword: string, newPassword: string) => {
+    setIsLoading(true)
+    try {
+      const updatedUser = await authService.changePassword(currentPassword, newPassword)
+      setUser(updatedUser)
+    } catch (error) {
+      console.error('Change password failed:', error)
+      throw error
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
+
   const logout = useCallback(async () => {
     try {
       await authService.logout()
@@ -70,6 +83,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     isLoading,
     isAuthenticated: !!token && !!user,
     login,
+    changePassword,
     logout,
   }
 

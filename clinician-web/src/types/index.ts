@@ -5,6 +5,7 @@ export interface User {
   lastName: string
   email: string
   role: 'clinician' | 'admin'
+  mustChangePassword?: boolean
   specialty?: string
   licenseNumber?: string
   hospitalId?: string
@@ -27,6 +28,7 @@ export interface AuthContextType {
   isLoading: boolean
   isAuthenticated: boolean
   login: (credentials: AuthCredentials) => Promise<void>
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>
   logout: () => void
 }
 

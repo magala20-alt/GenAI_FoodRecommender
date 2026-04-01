@@ -1,14 +1,25 @@
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_admin, get_current_user
 from app.db.session import get_db
 from app.models.user import User
-from app.schemas.auth import AuthResponse, LoginRequest, ProfileUpdateRequest, RefreshTokenRequest, RegisterRequest
+from app.schemas.auth import (
+    AdminCreateClinicianRequest,
+    AdminCreateClinicianResponse,
+    AuthResponse,
+    ChangePasswordRequest,
+    LoginRequest,
+    ProfileUpdateRequest,
+    RefreshTokenRequest,
+    RegisterRequest,
+)
 from app.schemas.user import UserRead
 from app.services.auth import (
     authenticate_user,
     build_auth_response,
+    change_user_password,
+    create_clinician_by_admin,
     create_refresh_auth_response,
     create_user,
     update_user_profile,
@@ -55,3 +66,27 @@ def update_profile(
     current_user: User = Depends(get_current_user),
 ) -> User:
     return update_user_profile(db=db, user=current_user, payload=payload)
+
+
+@router.post("/change-password", response_model=UserRead)
+def change_password(
+    payload: ChangePasswordRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> User:
+    return change_user_password(
+        db=db,
+        user=current_user,
+        current_password=payload.current_password,
+        new_password=payload.new_password,
+    )
+
+
+@router.post("/admin/clinicians", response_model=AdminCreateClinicianResponse, status_code=status.HTTP_201_CREATED)
+def create_clinician_account(
+    payload: AdminCreateClinicianRequest,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_admin),
+) -> AdminCreateClinicianResponse:
+    user, temporary_password = create_clinician_by_admin(db=db, payload=payload)
+    return AdminCreateClinicianResponse(user=user, temporaryPassword=temporary_password)
