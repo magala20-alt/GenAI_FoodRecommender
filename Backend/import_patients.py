@@ -64,14 +64,16 @@ def csv_to_int(value: str | int) -> int | None:
 
 
 def parse_enrollment_date(date_str: str) -> datetime | None:
-    """Parse enrollment date from CSV (format: YYYY-MM-DD)."""
+    """Parse enrollment date from CSV."""
     if not date_str or date_str == "":
         return None
-    try:
-        return datetime.strptime(date_str, "%Y-%m-%d")
-    except ValueError:
-        print(f"Warning: Could not parse date '{date_str}', skipping.")
-        return None
+    for date_format in ("%Y-%m-%d", "%d/%m/%Y"):
+        try:
+            return datetime.strptime(date_str, date_format)
+        except ValueError:
+            continue
+    print(f"Warning: Could not parse date '{date_str}', skipping.")
+    return None
 
 
 def import_patients(csv_path: str) -> None:
@@ -86,7 +88,8 @@ def import_patients(csv_path: str) -> None:
             
             for row_num, row in enumerate(reader, start=2):  # Start at 2 (header is row 1)
                 try:
-                    email = row.get("email", "").strip()
+                    email = row.get("Email", "").strip() or row.get("email", "").strip()
+                    name_source_email = email
                     
                     # Validate email is present
                     if not email:
@@ -101,8 +104,8 @@ def import_patients(csv_path: str) -> None:
                         skipped_count += 1
                         continue
                     
-                    # Extract name from email
-                    first_name, last_name = extract_name_from_email(email)
+                    # Extract name from the source email field when available.
+                    first_name, last_name = extract_name_from_email(name_source_email)
                     
                     # Create user record
                     user = User(
@@ -146,6 +149,7 @@ def import_patients(csv_path: str) -> None:
                         hdl_cholesterol=csv_to_float(row.get("hdl_cholesterol")),
                         ldl_cholesterol=csv_to_float(row.get("ldl_cholesterol")),
                         triglycerides=csv_to_float(row.get("triglycerides")),
+                        glucose=csv_to_float(row.get("glucose")),
                         baseline_risk_score=csv_to_float(row.get("baseline_risk_score")),
                         trajectory_type=row.get("trajectory_type", "").strip() or None,
                         enrollment_date=parse_enrollment_date(row.get("enrollment_date", "").strip()),
@@ -168,9 +172,9 @@ def import_patients(csv_path: str) -> None:
         
         # Commit all changes
         db.commit()
-        print(f"\n✓ Successfully imported {imported_count} patients")
+        print(f"\nSUCCESS: Imported {imported_count} patients")
         if skipped_count > 0:
-            print(f"⚠ Skipped {skipped_count} rows")
+            print(f"WARNING: Skipped {skipped_count} rows")
     
     except FileNotFoundError:
         print(f"Error: File '{csv_path}' not found")

@@ -18,6 +18,13 @@ class Settings(BaseSettings):
     admin_first_name: str = Field(default="System", alias="ADMIN_FIRST_NAME")
     admin_last_name: str = Field(default="Administrator", alias="ADMIN_LAST_NAME")
     clinician_default_password: str = Field(default="Doctor@12345", alias="CLINICIAN_DEFAULT_PASSWORD")
+    password_reset_frontend_url: str = Field(default="http://localhost:5173/reset-password", alias="PASSWORD_RESET_FRONTEND_URL")
+    email_from_address: str = Field(default="noreply@caresync.local", alias="EMAIL_FROM_ADDRESS")
+    smtp_host: str = Field(default="", alias="SMTP_HOST")
+    smtp_port: int = Field(default=587, alias="SMTP_PORT")
+    smtp_username: str = Field(default="", alias="SMTP_USERNAME")
+    smtp_password: str = Field(default="", alias="SMTP_PASSWORD")
+    smtp_use_tls: bool = Field(default=True, alias="SMTP_USE_TLS")
 
     # CORS origins allowed for cross-origin requests from the frontend.
     cors_origins: list[str] = [

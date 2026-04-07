@@ -1,3 +1,5 @@
 export { LoginScreen } from './auth/LoginScreen'
+export { ForgotPasswordScreen } from './auth/ForgotPasswordScreen'
+export { ResetPasswordScreen } from './auth/ResetPasswordScreen'
 export { MealPlanDashboard } from './dashboard/MealPlanDashboard'
 export { AIChatScreen } from './chat/AIChatScreen'

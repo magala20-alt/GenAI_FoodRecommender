@@ -1,23 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { useAuth } from '../hooks'
+import { PatientAISummary, patientService } from '../services/patientService'
 
 type RiskTier = 'High' | 'Medium' | 'Low'
-
-type SummaryCard = {
-  id: number
-  name: string
-  meta: string
-  initials: string
-  avatarGradient: string
-  risk: number
-  tier: RiskTier
-  explanation: string
-  actions: string[]
-  featureSignals?: Array<{ label: string; width: string; tone: 'red' | 'amber'; value: string }>
-  compact?: string
-}
 
 const navMainBase = ['Dashboard', 'Patients', 'AI Summaries', 'Alerts']
 const navTools = ['Schedule']
@@ -31,75 +18,6 @@ const navIcons: Record<string, string> = {
   Schedule: '📅',
 }
 
-const summaries: SummaryCard[] = [
-  {
-    id: 1,
-    name: 'Sarah Mensah',
-    meta: '42 yrs · Type 2 · Generated today 09:14 AM',
-    initials: 'SM',
-    avatarGradient: 'from-teal-600 to-sky-500',
-    risk: 0.87,
-    tier: 'High',
-    explanation:
-      'Patient engagement has declined significantly over the past 7 days, with only 2 of 7 meal logs recorded. BP rising to 142/95 mmHg. Glucose averaging 8.9 mmol/L. Risk score reached 0.87, highest in patient history. Immediate clinical review is recommended.',
-    featureSignals: [
-      { label: 'Meals logged (7d)', width: '85%', tone: 'red', value: '-0.34' },
-      { label: 'BP change (14d)', width: '55%', tone: 'red', value: '-0.22' },
-      { label: 'Calorie deviation', width: '40%', tone: 'amber', value: '-0.18' },
-      { label: 'App sessions (7d)', width: '28%', tone: 'amber', value: '-0.12' },
-    ],
-    actions: ['Urgent review', 'Med check', 'Simplify meal plan', 'Re-engagement msg'],
-  },
-  {
-    id: 2,
-    name: 'James Tekeba',
-    meta: '57 yrs · Type 2 · Generated today 08:52 AM',
-    initials: 'JT',
-    avatarGradient: 'from-violet-700 to-fuchsia-500',
-    risk: 0.79,
-    tier: 'High',
-    explanation:
-      'Rising systolic BP trend (142 mmHg, up from 128 two weeks ago) combined with only 3 of 7 meals logged and declining app engagement. Weight delta +1.1 kg over 14 days. BP medication review warranted.',
-    actions: ['Review Lisinopril', 'Schedule check-in', 'Reduce sodium targets'],
-  },
-  {
-    id: 3,
-    name: 'Priya Krishnan',
-    meta: '38 yrs · Type 2 · Generated today 08:30 AM',
-    initials: 'PK',
-    avatarGradient: 'from-orange-600 to-amber-500',
-    risk: 0.61,
-    tier: 'Medium',
-    explanation:
-      'Moderate engagement with 5 of 7 meals logged. Caloric excess of +18% is driving projected weight gain of +1.4 kg over 14 days. BP stable at 122/78 and glucose within range. Review calorie targets and add portion guidance.',
-    actions: ['Reduce calorie target', 'Portion guidance', 'Monitor weekly'],
-  },
-  {
-    id: 4,
-    name: 'David Osei',
-    meta: '64 yrs · Type 2 · Generated today 08:15 AM',
-    initials: 'DO',
-    avatarGradient: 'from-emerald-600 to-green-500',
-    risk: 0.58,
-    tier: 'Medium',
-    explanation:
-      'Glucose averaging 9.2 mmol/L above target with moderate adherence at 54%. Meal logging inconsistent at 4 of 7 days. Weight stable and BP slightly up at 136/88. Continue monitoring and nudge for consistency.',
-    actions: ['Send check-in message', 'Review meal plan variety'],
-  },
-  {
-    id: 5,
-    name: 'Amina Nkosi',
-    meta: '45 yrs · Type 2 · Generated today 08:05 AM',
-    initials: 'AN',
-    avatarGradient: 'from-sky-600 to-cyan-400',
-    risk: 0.12,
-    tier: 'Low',
-    explanation: '',
-    compact: '7/7 meals logged · BP stable 118/74 · Glucose avg 6.8 · Weight -0.5kg · Streak 12 days',
-    actions: [],
-  },
-]
-
 function clsx(...tokens: Array<string | false | undefined>) {
   return tokens.filter(Boolean).join(' ')
 }
@@ -110,10 +28,40 @@ function riskTone(tier: RiskTier) {
   return 'border-emerald-400 bg-emerald-50 text-emerald-700'
 }
 
+function toLocalDateKey(value: string) {
+  const d = new Date(value)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+function formatGeneratedLabel(timestamp: string) {
+  const d = new Date(timestamp)
+  return `Generated ${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+}
+
+function initials(name: string) {
+  const bits = name.split(' ').filter(Boolean)
+  if (bits.length === 0) return 'NA'
+  if (bits.length === 1) return bits[0].slice(0, 2).toUpperCase()
+  return `${bits[0][0] ?? ''}${bits[1][0] ?? ''}`.toUpperCase()
+}
+
+function avatarGradientForRisk(tier: RiskTier) {
+  if (tier === 'High') return 'from-red-600 to-orange-500'
+  if (tier === 'Medium') return 'from-amber-600 to-orange-400'
+  return 'from-emerald-600 to-teal-500'
+}
+
 export function AISummariesPage() {
   const navigate = useNavigate()
   const { user, logout } = useAuth()
   const [activeNav, setActiveNav] = useState('AI Summaries')
+  const [summaries, setSummaries] = useState<PatientAISummary[]>([])
+  const [loading, setLoading] = useState(true)
+  const [regeneratingAll, setRegeneratingAll] = useState(false)
+  const [refreshingPatientId, setRefreshingPatientId] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [searchText, setSearchText] = useState('')
+  const [riskFilter, setRiskFilter] = useState<'ALL' | RiskTier>('ALL')
 
   const clinicianName = user ? `${user.firstName} ${user.lastName}` : 'Unknown User'
   const clinicianInitials = user ? `${user.firstName[0] ?? ''}${user.lastName[0] ?? ''}`.toUpperCase() : 'NA'
@@ -126,10 +74,38 @@ export function AISummariesPage() {
     return navMainBase
   }, [user?.role])
 
-  const highCount = 6
-  const mediumCount = 14
-  const lowCount = 28
-  const generatedToday = 12
+  const loadSummaries = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const data = await patientService.getAISummaries()
+      setSummaries(data)
+    } catch (err) {
+      console.error('Failed to load AI summaries:', err)
+      setError('Unable to load AI summaries right now.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void loadSummaries()
+  }, [])
+
+  const filteredSummaries = useMemo(() => {
+    const query = searchText.trim().toLowerCase()
+    return summaries.filter(item => {
+      const byRisk = riskFilter === 'ALL' || item.riskLevel === riskFilter
+      const bySearch = query.length === 0 || item.patientName.toLowerCase().includes(query)
+      return byRisk && bySearch
+    })
+  }, [riskFilter, searchText, summaries])
+
+  const highCount = summaries.filter(item => item.riskLevel === 'High').length
+  const mediumCount = summaries.filter(item => item.riskLevel === 'Medium').length
+  const lowCount = summaries.filter(item => item.riskLevel === 'Low').length
+  const todayKey = toLocalDateKey(new Date().toISOString())
+  const generatedToday = summaries.filter(item => toLocalDateKey(item.generatedAt) === todayKey).length
 
   const handleNavClick = (item: string) => {
     setActiveNav(item)
@@ -139,6 +115,34 @@ export function AISummariesPage() {
     if (item === 'AI Summaries') navigate('/ai-summaries')
     if (item === 'Alerts') navigate('/alerts')
     if (item === 'Schedule') navigate('/schedule')
+  }
+
+  const handleRegenerateAll = async () => {
+    try {
+      setRegeneratingAll(true)
+      setError(null)
+      await patientService.regenerateAISummaries()
+      await loadSummaries()
+    } catch (err) {
+      console.error('Failed to regenerate AI summaries:', err)
+      setError('Unable to regenerate summaries right now.')
+    } finally {
+      setRegeneratingAll(false)
+    }
+  }
+
+  const handleRegenerateOne = async (patientId: string) => {
+    try {
+      setRefreshingPatientId(patientId)
+      setError(null)
+      await patientService.regeneratePatientAISummary(patientId)
+      await loadSummaries()
+    } catch (err) {
+      console.error('Failed to regenerate patient summary:', err)
+      setError('Unable to refresh this summary right now.')
+    } finally {
+      setRefreshingPatientId(null)
+    }
   }
 
   return (
@@ -199,22 +203,64 @@ export function AISummariesPage() {
         <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between shrink-0">
           <h1 className="text-xl font-bold text-slate-900">AI Summaries</h1>
           <div className="flex items-center gap-2">
-            <div className="w-[180px] bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-500">🔍 Search patient...</div>
+            <input
+              value={searchText}
+              onChange={e => setSearchText(e.target.value)}
+              placeholder="Search patient..."
+              className="w-[180px] bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-600"
+            />
             <button className="text-sm border border-slate-200 bg-slate-50 hover:bg-slate-100 px-3 py-1.5 rounded-lg">📅 Date range</button>
-            <button className="bg-teal-500 hover:bg-teal-600 text-white text-sm font-semibold px-4 py-2 rounded-lg">↺ Regenerate All</button>
+            <button
+              onClick={handleRegenerateAll}
+              disabled={regeneratingAll}
+              className="bg-teal-500 hover:bg-teal-600 disabled:bg-teal-300 text-white text-sm font-semibold px-4 py-2 rounded-lg"
+            >
+              {regeneratingAll ? 'Regenerating...' : '↺ Regenerate All'}
+            </button>
           </div>
         </header>
 
         <section className="flex-1 overflow-y-auto p-4 md:p-5 flex flex-col gap-3">
           <div className="flex gap-2 items-center flex-wrap">
-            <div className="w-[220px] bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-500">🔍 Search patient...</div>
-            <button className="text-xs font-medium px-3 py-1.5 rounded-full bg-slate-100 text-slate-700">All Patients</button>
-            <button className="text-xs font-medium px-3 py-1.5 rounded-full border border-slate-200 text-slate-700">🔴 High Risk</button>
-            <button className="text-xs font-medium px-3 py-1.5 rounded-full border border-slate-200 text-slate-700">🟡 Medium Risk</button>
-            <button className="text-xs font-medium px-3 py-1.5 rounded-full border border-slate-200 text-slate-700">🟢 Low Risk</button>
+            <input
+              value={searchText}
+              onChange={e => setSearchText(e.target.value)}
+              placeholder="Search patient..."
+              className="w-[220px] bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-600"
+            />
+            <button
+              onClick={() => setRiskFilter('ALL')}
+              className={clsx('text-xs font-medium px-3 py-1.5 rounded-full border', riskFilter === 'ALL' ? 'bg-slate-100 text-slate-700 border-slate-300' : 'border-slate-200 text-slate-700')}
+            >
+              All Patients
+            </button>
+            <button
+              onClick={() => setRiskFilter('High')}
+              className={clsx('text-xs font-medium px-3 py-1.5 rounded-full border', riskFilter === 'High' ? 'bg-red-50 text-red-700 border-red-300' : 'border-slate-200 text-slate-700')}
+            >
+              🔴 High Risk
+            </button>
+            <button
+              onClick={() => setRiskFilter('Medium')}
+              className={clsx('text-xs font-medium px-3 py-1.5 rounded-full border', riskFilter === 'Medium' ? 'bg-amber-50 text-amber-700 border-amber-300' : 'border-slate-200 text-slate-700')}
+            >
+              🟡 Medium Risk
+            </button>
+            <button
+              onClick={() => setRiskFilter('Low')}
+              className={clsx('text-xs font-medium px-3 py-1.5 rounded-full border', riskFilter === 'Low' ? 'bg-emerald-50 text-emerald-700 border-emerald-300' : 'border-slate-200 text-slate-700')}
+            >
+              🟢 Low Risk
+            </button>
             <div className="ml-auto flex gap-2">
               <button className="text-sm border border-slate-200 bg-white hover:bg-slate-50 px-3 py-1.5 rounded-lg">📅 Filter by date</button>
-              <button className="bg-teal-500 hover:bg-teal-600 text-white text-sm font-semibold px-4 py-2 rounded-lg">↺ Regenerate All</button>
+              <button
+                onClick={handleRegenerateAll}
+                disabled={regeneratingAll}
+                className="bg-teal-500 hover:bg-teal-600 disabled:bg-teal-300 text-white text-sm font-semibold px-4 py-2 rounded-lg"
+              >
+                {regeneratingAll ? 'Regenerating...' : '↺ Regenerate All'}
+              </button>
             </div>
           </div>
 
@@ -225,50 +271,61 @@ export function AISummariesPage() {
             <Stat title="Generated Today" value={generatedToday} className="bg-teal-50 border-teal-200 text-teal-700" />
           </div>
 
-          {summaries.map(item => (
-            <div key={item.id} className={clsx('bg-white border border-slate-200 rounded-xl p-4', item.tier === 'Low' ? 'border-l-[4px] border-l-emerald-500' : item.tier === 'High' ? 'border-l-[4px] border-l-red-500' : 'border-l-[4px] border-l-amber-500')}>
+          {error && <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</div>}
+
+          {loading && <div className="text-sm text-slate-600">Loading summaries...</div>}
+
+          {!loading && filteredSummaries.length === 0 && (
+            <div className="text-sm text-slate-600 bg-white border border-slate-200 rounded-lg px-4 py-3">No summaries match your filter.</div>
+          )}
+
+          {filteredSummaries.map(item => (
+            <div key={item.id} className={clsx('bg-white border border-slate-200 rounded-xl p-4', item.riskLevel === 'Low' ? 'border-l-[4px] border-l-emerald-500' : item.riskLevel === 'High' ? 'border-l-[4px] border-l-red-500' : 'border-l-[4px] border-l-amber-500')}>
               <div className="flex items-start justify-between gap-3 mb-3">
                 <div className="flex items-center gap-2.5">
-                  <div className={clsx('w-8 h-8 rounded-full text-white text-xs font-bold flex items-center justify-center bg-gradient-to-br', item.avatarGradient)}>{item.initials}</div>
+                  <div className={clsx('w-8 h-8 rounded-full text-white text-xs font-bold flex items-center justify-center bg-gradient-to-br', avatarGradientForRisk(item.riskLevel))}>{initials(item.patientName)}</div>
                   <div>
-                    <p className="text-sm font-bold text-slate-900">{item.name}</p>
-                    <p className="text-xs text-slate-500">{item.meta}</p>
-                    {item.compact && <p className="text-xs text-slate-600 mt-1">{item.compact}</p>}
+                    <p className="text-sm font-bold text-slate-900">{item.patientName}</p>
+                    <p className="text-xs text-slate-500">{formatGeneratedLabel(item.generatedAt)}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-1.5 flex-wrap justify-end">
-                  <span className={clsx('text-xs font-semibold px-2 py-0.5 rounded-full border', riskTone(item.tier))}>Risk: {item.risk.toFixed(2)}</span>
-                  {item.tier !== 'Low' && <button className="text-xs bg-teal-500 text-white px-2.5 py-1 rounded-md hover:bg-teal-600">📝 Intervene</button>}
-                  {item.tier === 'High' && <button className="text-xs border border-slate-200 px-2.5 py-1 rounded-md hover:bg-slate-50">↺ Refresh</button>}
-                  <button className="text-xs border border-slate-200 px-2.5 py-1 rounded-md hover:bg-slate-50">👁 View Profile</button>
+                  <span className={clsx('text-xs font-semibold px-2 py-0.5 rounded-full border', riskTone(item.riskLevel))}>Risk: {(item.riskScore ?? 0).toFixed(2)}</span>
+                  {item.riskLevel !== 'Low' && (
+                    <button
+                      className="text-xs bg-teal-500 text-white px-2.5 py-1 rounded-md hover:bg-teal-600"
+                      onClick={() => navigate(`/patients/${item.patientId}`)}
+                    >
+                      📝 See Care Plan
+                    </button>
+                  )}
+                  <button
+                    onClick={() => handleRegenerateOne(item.patientId)}
+                    disabled={refreshingPatientId === item.patientId}
+                    className="text-xs border border-slate-200 px-2.5 py-1 rounded-md hover:bg-slate-50 disabled:text-slate-400"
+                  >
+                    {refreshingPatientId === item.patientId ? 'Refreshing...' : '↺ Refresh'}
+                  </button>
+                  <button
+                    onClick={() => navigate(`/patients/${item.patientId}`)}
+                    className="text-xs border border-slate-200 px-2.5 py-1 rounded-md hover:bg-slate-50"
+                  >
+                    👁 View Profile
+                  </button>
                 </div>
               </div>
 
-              {item.tier !== 'Low' && (
+              {item.riskLevel !== 'Low' && (
                 <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 mb-3">
                   <p className="text-[10px] font-bold tracking-[0.12em] uppercase text-teal-600 mb-1">🧠 AI Explanation</p>
-                  <p className="text-sm text-slate-700 leading-6">{item.explanation}</p>
-                </div>
-              )}
-
-              {item.featureSignals && (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-2 mb-3">
-                  {item.featureSignals.map(signal => (
-                    <div key={signal.label} className="bg-slate-50 border border-slate-200 rounded-lg p-2">
-                      <p className="text-[10px] text-slate-500 mb-1">{signal.label}</p>
-                      <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden mb-1">
-                        <div className={clsx('h-full rounded-full', signal.tone === 'red' ? 'bg-red-500' : 'bg-amber-500')} style={{ width: signal.width }} />
-                      </div>
-                      <p className={clsx('text-[10px] font-bold', signal.tone === 'red' ? 'text-red-600' : 'text-amber-700')}>{signal.value}</p>
-                    </div>
-                  ))}
+                  <p className="text-sm text-slate-700 leading-6">{item.summaryText}</p>
                 </div>
               )}
 
               <div className="flex items-center gap-1.5 flex-wrap">
-                {item.tier !== 'Low' && <span className="text-xs font-semibold text-slate-700">Suggested Actions:</span>}
-                {item.tier === 'Low' && <span className="text-xs font-semibold text-emerald-700">✓ No action needed</span>}
-                {item.actions.map(action => (
+                {item.riskLevel !== 'Low' && <span className="text-xs font-semibold text-slate-700">Suggested Actions:</span>}
+                {item.riskLevel === 'Low' && <span className="text-xs font-semibold text-emerald-700">✓ No action needed</span>}
+                {item.suggestedActions.map(action => (
                   <span key={action} className="text-xs px-2.5 py-1 rounded-full bg-slate-100 text-slate-700">{action}</span>
                 ))}
               </div>

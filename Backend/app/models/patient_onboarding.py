@@ -49,6 +49,7 @@ class PatientOnboarding(Base):
     hdl_cholesterol: Mapped[float | None] = mapped_column(Float, nullable=True)
     ldl_cholesterol: Mapped[float | None] = mapped_column(Float, nullable=True)
     triglycerides: Mapped[float | None] = mapped_column(Float, nullable=True)
+    glucose: Mapped[float | None] = mapped_column(Float, nullable=True) # fasting glucose level in mg/dL
     budget_preference: Mapped[str] = mapped_column(String(20), default=BudgetPreference.MEDIUM.value)
     country: Mapped[str | None] = mapped_column(String(120), nullable=True)
     weight_kg: Mapped[float | None] = mapped_column(Float, nullable=True)

@@ -114,4 +114,31 @@ export const authService = {
       throw new Error(getErrorMessage(error))
     }
   },
+
+  async requestPasswordReset(email: string): Promise<{ detail: string }> {
+    try {
+      return await apiClient.post<{ detail: string }>('/auth/forgot-password', { email })
+    } catch (error) {
+      throw new Error(getErrorMessage(error))
+    }
+  },
+
+  async verifyPasswordResetToken(token: string): Promise<{ valid: boolean }> {
+    try {
+      return await apiClient.get<{ valid: boolean }>(`/auth/reset-password/verify?token=${encodeURIComponent(token)}`)
+    } catch (error) {
+      throw new Error(getErrorMessage(error))
+    }
+  },
+
+  async resetPassword(token: string, newPassword: string): Promise<{ detail: string }> {
+    try {
+      return await apiClient.post<{ detail: string }>('/auth/reset-password', {
+        token,
+        newPassword,
+      })
+    } catch (error) {
+      throw new Error(getErrorMessage(error))
+    }
+  },
 }

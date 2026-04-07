@@ -34,3 +34,17 @@ Return a structured response with:
 3. Brief explanation
 
 """
+
+CLINICAL_SUMMARY_EXAMPLES = [
+    """
+** AI Summary for Clinician Review **
+Patient engagement has declined significantly over the past 7 days, with only 2 out of 7 meal logs recorded. 
+Combined with a rising blood pressure trend (142/95 mmHg, up from 128/82 two weeks ago) and a worsening glucose pattern averaging 8.9 mmol/L, the adherence risk score has reached 0.87 — the highest in this patient's history. 
+Immediate clinical review is recommended.
+
+** Recommendations for Clinician Action **
+1. Schedule a follow-up appointment within the next week. Within 48HOURS (Priorty)
+2. Discuss potential barriers to adherence, such as medication side effects or lifestyle challenges.
+3. Simplify Meal plan.
+"""
+]

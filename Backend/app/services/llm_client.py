@@ -50,35 +50,6 @@ class OpenAIProvider(LLMProvider):
         return response.choices[0].message.content
 
 
-class AnthropicProvider(LLMProvider):
-    """Anthropic Claude API provider."""
-    
-    def __init__(self, api_key: str = None, model: str = None):
-        """Initialize Anthropic provider."""
-        try:
-            import anthropic
-        except ImportError:
-            raise ImportError(
-                "Anthropic package not installed. Install with: pip install anthropic"
-            )
-        
-        self.anthropic = anthropic
-        self.api_key = api_key or settings.llm_api_key
-        self.model = model or settings.llm_model or "claude-3-sonnet-20240229"
-        
-        if not self.api_key:
-            raise ValueError("Anthropic API key not provided")
-        
-        self.client = anthropic.Anthropic(api_key=self.api_key)
-    
-    def call(self, messages: List[Dict[str, str]]) -> str:
-        """Call Anthropic API."""
-        response = self.client.messages.create(
-            model=self.model,
-            max_tokens=2000,
-            messages=messages
-        )
-        return response.content[0].text
 
 
 class LLMClient:
@@ -101,8 +72,6 @@ class LLMClient:
         
         if provider_name == "openai":
             cls._provider = OpenAIProvider()
-        elif provider_name == "anthropic" or provider_name == "claude":
-            cls._provider = AnthropicProvider()
         else:
             raise ValueError(
                 f"Unknown LLM provider: {provider_name}. "
@@ -134,8 +103,7 @@ class LLMClient:
         if provider_override:
             if provider_override.lower() == "openai":
                 provider = OpenAIProvider()
-            elif provider_override.lower() == "anthropic":
-                provider = AnthropicProvider()
+           
         
         if not provider:
             raise RuntimeError("No LLM provider initialized")

@@ -1,5 +1,6 @@
 from pathlib import Path
 import sys
+from uuid import uuid4
 
 from fastapi.testclient import TestClient
 
@@ -36,6 +37,34 @@ def test_patient() -> None:
     assert response.status_code == 200
     assert isinstance(response.json(), list)
 
+def test_rag() ->None:
+    email = f"patient-rag-{uuid4().hex[:10]}@example.com"
+    register_response = client.post(
+        "/api/auth/register",
+        json={
+            "email": email,
+            "password": "Patient@12345",
+            "firstName": "Rag",
+            "lastName": "Patient",
+            "userType": "patient",
+        },
+    )
+
+    assert register_response.status_code == 201
+    payload = register_response.json()
+    access_token = payload.get("token") or payload.get("accessToken")
+    assert access_token is not None
+    
+    response = client.post("/api/patient-rag/recommendations", json={
+        "query": "low carb high protein dinner",
+        "includeExamples": True,
+        "kRetrieved": 5
+    }, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200
+    json_response = response.json()
+    assert "response" in json_response
+    assert "retrievedMeals" in json_response
+    assert "numMealsRetrieved" in json_response
 
 if __name__ == "__main__":
     import pytest

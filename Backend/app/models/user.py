@@ -39,6 +39,7 @@ class User(Base):
 
     onboarding = relationship("PatientOnboarding", back_populates="user", uselist=False)
     meal_history = relationship("MealHistory", back_populates="user")
+    health_readings = relationship("UserHealthReadings", back_populates="user")
     user_metrics = relationship("UserMetrics", back_populates="user")
     cuisine_scores = relationship("CuisineScore", back_populates="user")
 

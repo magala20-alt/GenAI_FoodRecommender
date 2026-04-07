@@ -1,20 +1,23 @@
-import React, { useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import {
+  ActivityIndicator,
+  Alert,
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  FlatList,
+  TextInput,
 } from 'react-native'
+import * as ImagePicker from 'expo-image-picker'
 import { Colors, Spacing, BorderRadius, Typography, moderateScale, scale } from '../../constants/theme'
-import { Button } from '../../components/atoms'
+import { mealLoggerService, MealInputMode } from '../../services/mealLoggerService'
 
 interface LoggedMeal {
   id: string
   name: string
   calories: number
-  mealType: string
+  mealType?: string
   time: string
 }
 
@@ -26,163 +29,295 @@ interface Vital {
 }
 
 export function DiaryScreen() {
-  const [selectedDate, setSelectedDate] = useState(new Date())
-  const [loggedMeals, setLoggedMeals] = useState<LoggedMeal[]>([
-    { id: '1', name: 'Oat Porridge + Banana', calories: 320, mealType: 'Breakfast', time: '07:30' },
-    { id: '2', name: 'Grilled Tilapia + Rice', calories: 480, mealType: 'Lunch', time: '12:45' },
-  ])
+  const [inputMode, setInputMode] = useState<MealInputMode>('photo')
+  const [mealType, setMealType] = useState<'Breakfast' | 'Lunch' | 'Dinner' | 'Snack'>('Dinner')
+  const [imageDataUrl, setImageDataUrl] = useState<string | undefined>(undefined)
+  const [voiceTranscript, setVoiceTranscript] = useState('')
+  const [manualDescription, setManualDescription] = useState('')
+  const [detectedMealName, setDetectedMealName] = useState('')
+  const [detectedCalories, setDetectedCalories] = useState<number>(0)
+  const [detectedConfidence, setDetectedConfidence] = useState<number>(0)
+  const [detectedTags, setDetectedTags] = useState<string[]>([])
+  const [loadingSnapshot, setLoadingSnapshot] = useState(false)
+  const [savingLog, setSavingLog] = useState(false)
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [loggedMeals, setLoggedMeals] = useState<LoggedMeal[]>([])
 
-  const vitals: Vital[] = [
-    { label: 'Weight', value: 78.2, icon: '⚖️', unit: 'kg' },
-    { label: 'BP', value: '128/82', icon: '💓', unit: 'mmHg' },
-    { label: 'Glucose', value: 7.8, icon: '🩺', unit: 'mmol/L' },
-    { label: 'Steps', value: 6240, icon: '👟', unit: 'steps' },
-  ]
+  const totalCalories = useMemo(() => loggedMeals.reduce((sum, meal) => sum + meal.calories, 0), [loggedMeals])
 
-  const totalCalories = loggedMeals.reduce((sum, meal) => sum + meal.calories, 0)
-  const targetCalories = 1650
-  const caloriePercentage = (totalCalories / targetCalories) * 100
-
-  // Date picker
-  const getDatesForWeek = () => {
-    const dates = []
-    for (let i = 6; i >= 0; i--) {
-      const date = new Date()
-      date.setDate(date.getDate() - i)
-      dates.push(date)
+  useEffect(() => {
+    const loadHistory = async () => {
+      setHistoryLoading(true)
+      try {
+        const items = await mealLoggerService.getHistory()
+        setLoggedMeals(
+          items.map(item => ({
+            id: item.id,
+            name: item.mealName,
+            calories: item.calories,
+            mealType: item.mealType,
+            time: new Date(item.consumedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          })),
+        )
+      } catch (error) {
+        console.error('Failed to load meal history', error)
+      } finally {
+        setHistoryLoading(false)
+      }
     }
-    return dates
+
+    loadHistory()
+  }, [])
+
+  const triggerSnapshotExtraction = async () => {
+    if (inputMode === 'photo' && !imageDataUrl) {
+      Alert.alert('Photo required', 'Take a photo or choose one from gallery first.')
+      return
+    }
+
+    if (inputMode === 'voice' && !voiceTranscript.trim()) {
+      Alert.alert('Voice transcript required', 'Add your voice transcript to estimate calories.')
+      return
+    }
+
+    if (inputMode === 'manual' && !manualDescription.trim()) {
+      Alert.alert('Meal description required', 'Describe the meal to estimate calories.')
+      return
+    }
+
+    setLoadingSnapshot(true)
+    try {
+      const result = await mealLoggerService.extractSnapshot({
+        inputMode,
+        imageDataUrl,
+        transcript: voiceTranscript.trim() || undefined,
+        mealDescription: manualDescription.trim() || undefined,
+        mealType,
+      })
+
+      setDetectedMealName(result.mealName)
+      setDetectedCalories(result.estimatedCalories)
+      setDetectedConfidence(result.confidence)
+      setDetectedTags(result.tags || [])
+
+      if (result.suggestedMealType) {
+        const normalized = result.suggestedMealType as 'Breakfast' | 'Lunch' | 'Dinner' | 'Snack'
+        if (['Breakfast', 'Lunch', 'Dinner', 'Snack'].includes(normalized)) {
+          setMealType(normalized)
+        }
+      }
+    } catch (error) {
+      console.error('Snapshot extraction failed', error)
+      Alert.alert('Analysis failed', 'Could not analyze this meal. Try manual input or a clearer image.')
+    } finally {
+      setLoadingSnapshot(false)
+    }
   }
 
-  const isDateSelected = (date: Date) => {
-    return selectedDate.toDateString() === date.toDateString()
+  const openCamera = async () => {
+    const permission = await ImagePicker.requestCameraPermissionsAsync()
+    if (!permission.granted) {
+      Alert.alert('Camera permission needed', 'Enable camera access to take meal snapshots.')
+      return
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      allowsEditing: true,
+      quality: 0.65,
+      base64: true,
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+    })
+
+    if (!result.canceled && result.assets[0]?.base64) {
+      setImageDataUrl(`data:image/jpeg;base64,${result.assets[0].base64}`)
+    }
+  }
+
+  const openGallery = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync()
+    if (!permission.granted) {
+      Alert.alert('Gallery permission needed', 'Enable gallery access to import meal photos.')
+      return
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      allowsEditing: true,
+      quality: 0.65,
+      base64: true,
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+    })
+
+    if (!result.canceled && result.assets[0]?.base64) {
+      setImageDataUrl(`data:image/jpeg;base64,${result.assets[0].base64}`)
+    }
+  }
+
+  const saveMealLog = async () => {
+    if (!detectedMealName.trim()) {
+      Alert.alert('No detected meal', 'Analyze the meal first to detect calories and meal name.')
+      return
+    }
+
+    setSavingLog(true)
+    try {
+      const saved = await mealLoggerService.saveMealLog({
+        mealName: detectedMealName,
+        calories: detectedCalories,
+        mealType,
+        source: inputMode,
+        confidence: Number(detectedConfidence.toFixed(2)),
+        notes: inputMode === 'manual' ? manualDescription : voiceTranscript,
+      })
+
+      setLoggedMeals(prev => [
+        {
+          id: saved.id,
+          name: saved.mealName,
+          calories: saved.calories,
+          mealType: saved.mealType,
+          time: new Date(saved.consumedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        },
+        ...prev,
+      ])
+
+      setDetectedMealName('')
+      setDetectedCalories(0)
+      setDetectedConfidence(0)
+      setDetectedTags([])
+      setImageDataUrl(undefined)
+      setVoiceTranscript('')
+      setManualDescription('')
+      Alert.alert('Saved', 'Meal log saved to your history.')
+    } catch (error) {
+      console.error('Meal save failed', error)
+      Alert.alert('Save failed', 'Could not save meal history. Please try again.')
+    } finally {
+      setSavingLog(false)
+    }
   }
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Food Diary</Text>
+        <Text style={styles.cancelText}>Cancel</Text>
+        <Text style={styles.headerTitle}>Log a Meal</Text>
+        <Text style={styles.saveText}>Save</Text>
       </View>
 
-      {/* Date Selector */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.dateScroller}
-        contentContainerStyle={styles.dateScrollerContent}
-      >
-        {getDatesForWeek().map((date, idx) => (
-          <TouchableOpacity
-            key={idx}
-            style={[
-              styles.dateButton,
-              isDateSelected(date) && styles.dateButtonActive,
-            ]}
-            onPress={() => setSelectedDate(date)}
-          >
-            <Text style={styles.dateDay}>{date.toLocaleDateString('en-US', { weekday: 'short' }).substring(0, 3)}</Text>
-            <Text
-              style={[
-                styles.dateNumber,
-                isDateSelected(date) && styles.dateNumberActive,
-              ]}
+      <View style={styles.tabsRow}>
+        <TouchableOpacity style={[styles.tabItem, inputMode === 'photo' && styles.tabActive]} onPress={() => setInputMode('photo')}>
+          <Text style={styles.tabLabel}>📸 Photo</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.tabItem, inputMode === 'voice' && styles.tabActive]} onPress={() => setInputMode('voice')}>
+          <Text style={styles.tabLabel}>🎙️ Voice</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.tabItem, inputMode === 'manual' && styles.tabActive]} onPress={() => setInputMode('manual')}>
+          <Text style={styles.tabLabel}>✏️ Manual</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.captureCard}>
+        <Text style={styles.captureEmoji}>📷</Text>
+        <Text style={styles.captureTitle}>Take a photo of your meal</Text>
+        <Text style={styles.captureSubtitle}>AI will identify food and calories</Text>
+
+        {inputMode === 'photo' ? (
+          <View style={styles.captureButtonsRow}>
+            <TouchableOpacity style={styles.primaryPillButton} onPress={openCamera}>
+              <Text style={styles.primaryPillText}>Open Camera</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.secondaryPillButton} onPress={openGallery}>
+              <Text style={styles.secondaryPillText}>Gallery</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+
+        {inputMode === 'voice' ? (
+          <TextInput
+            style={styles.inputBox}
+            value={voiceTranscript}
+            onChangeText={setVoiceTranscript}
+            placeholder="Paste or type voice transcript..."
+            multiline
+          />
+        ) : null}
+
+        {inputMode === 'manual' ? (
+          <TextInput
+            style={styles.inputBox}
+            value={manualDescription}
+            onChangeText={setManualDescription}
+            placeholder="Describe meal (e.g. Jollof rice + grilled chicken)"
+            multiline
+          />
+        ) : null}
+
+        <TouchableOpacity style={styles.analyzeButton} onPress={triggerSnapshotExtraction} disabled={loadingSnapshot}>
+          {loadingSnapshot ? <ActivityIndicator color={Colors.white} /> : <Text style={styles.analyzeButtonText}>Analyze Meal</Text>}
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.detectedCard}>
+        <Text style={styles.detectedLabel}>🧠 AI DETECTED</Text>
+        <Text style={styles.detectedMealName}>{detectedMealName || 'No meal analyzed yet'}</Text>
+        <Text style={styles.detectedMeta}>{detectedCalories || 0} kcal • Confidence {(detectedConfidence * 100).toFixed(0)}%</Text>
+
+        {detectedTags.length > 0 ? (
+          <View style={styles.tagsRow}>
+            {detectedTags.slice(0, 4).map(tag => (
+              <View key={tag} style={styles.tagChip}>
+                <Text style={styles.tagChipText}>{tag}</Text>
+              </View>
+            ))}
+          </View>
+        ) : null}
+
+        <Text style={styles.mealTypeTitle}>Meal Type</Text>
+        <View style={styles.mealTypeRow}>
+          {(['Breakfast', 'Lunch', 'Dinner', 'Snack'] as const).map(type => (
+            <TouchableOpacity
+              key={type}
+              style={[styles.mealTypeChip, mealType === type && styles.mealTypeChipActive]}
+              onPress={() => setMealType(type)}
             >
-              {date.getDate()}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-
-      {/* Calories Section */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Calories Today</Text>
-        
-        <View style={styles.calorieCard}>
-          <View>
-            <Text style={styles.calorieValue}>{totalCalories}</Text>
-            <Text style={styles.calorieLabel}>/ {targetCalories} kcal</Text>
-            <Text style={styles.calorieRemaining}>
-              {totalCalories > targetCalories
-                ? `${totalCalories - targetCalories} over target`
-                : `${targetCalories - totalCalories} remaining`
-              }
-            </Text>
-          </View>
-          
-          <View style={styles.progressBar}>
-            <View
-              style={[
-                styles.progressBarFill,
-                {
-                  width: `${Math.min(caloriePercentage, 100)}%`,
-                  backgroundColor: caloriePercentage > 100 ? Colors.danger : Colors.success,
-                },
-              ]}
-            />
-          </View>
+              <Text style={[styles.mealTypeChipText, mealType === type && styles.mealTypeChipTextActive]}>{type}</Text>
+            </TouchableOpacity>
+          ))}
         </View>
       </View>
 
-      {/* Meals Logged */}
       <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Meals Logged</Text>
-          <TouchableOpacity>
-            <Text style={styles.addMealButton}>+ Add Meal</Text>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity style={styles.saveMealButton} onPress={saveMealLog} disabled={savingLog || loadingSnapshot}>
+          {savingLog ? <ActivityIndicator color={Colors.white} /> : <Text style={styles.saveMealButtonText}>Save Meal Log</Text>}
+        </TouchableOpacity>
 
-        {loggedMeals.length === 0 ? (
+        <Text style={styles.sectionTitle}>Recent Meal History</Text>
+
+        {historyLoading ? (
+          <ActivityIndicator color={Colors.primary} />
+        ) : loggedMeals.length === 0 ? (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyIcon}>🍽️</Text>
-            <Text style={styles.emptyText}>No meals logged yet</Text>
+            <Text style={styles.emptyText}>No meals logged yet.</Text>
           </View>
         ) : (
           loggedMeals.map(meal => (
             <View key={meal.id} style={styles.mealListItem}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.mealName}>{meal.name}</Text>
-                <Text style={styles.mealType}>{meal.mealType} • {meal.time}</Text>
+                <Text style={styles.mealType}>{meal.mealType || 'Meal'} • {meal.time}</Text>
               </View>
               <Text style={styles.mealCalories}>{meal.calories} kcal</Text>
-              <TouchableOpacity>
-                <Text style={styles.editLink}>Edit</Text>
-              </TouchableOpacity>
             </View>
           ))
         )}
       </View>
 
-      {/* Today's Vitals */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Today's Vitals</Text>
-          <TouchableOpacity>
-            <Text style={styles.logVitalsButton}>+ Log Vitals</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.vitalsGrid}>
-          {vitals.map((vital, idx) => (
-            <View key={idx} style={styles.vitalCard}>
-              <Text style={styles.vitalIcon}>{vital.icon}</Text>
-              <Text style={styles.vitalValue}>{vital.value}{vital.unit !== 'steps' ? vital.unit : ''}</Text>
-              <Text style={styles.vitalLabel}>{vital.label}</Text>
-              <TouchableOpacity style={styles.vitalEditIcon}>
-                <Text>✏️</Text>
-              </TouchableOpacity>
-            </View>
-          ))}
-        </View>
+      <View style={styles.calorieSummary}>
+        <Text style={styles.calorieSummaryTitle}>Calories Logged Today</Text>
+        <Text style={styles.calorieSummaryValue}>{totalCalories} kcal</Text>
       </View>
 
-      {/* FAB Section Info */}
-      <View style={styles.fabHint}>
-        <Text style={styles.fabHintText}>💡 Tap the meal icon at bottom right to add a meal quickly</Text>
-      </View>
-
-      <View style={{ height: Spacing.xl }} />
+      <View style={{ height: Spacing.xxl }} />
     </ScrollView>
   )
 }
@@ -194,59 +329,202 @@ const styles = StyleSheet.create({
   },
 
   header: {
-    backgroundColor: Colors.white,
+    backgroundColor: Colors.warmWhite,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.divider,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  cancelText: {
+    color: Colors.primary,
+    fontSize: Typography.sizes.bodySmall,
   },
   headerTitle: {
-    fontSize: Typography.sizes.h3,
+    fontSize: Typography.sizes.h4,
     fontWeight: 'bold',
     color: Colors.text.primary,
+  },
+  saveText: {
+    color: Colors.primary,
+    fontSize: Typography.sizes.bodySmall,
   },
 
-  dateScroller: {
-    backgroundColor: Colors.white,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.divider,
-  },
-  dateScrollerContent: {
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    gap: Spacing.md,
-  },
-  dateButton: {
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 2,
-    borderColor: Colors.lightGray,
+  tabsRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    minWidth: scale(60),
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.lightGray,
+    backgroundColor: Colors.white,
   },
-  dateButtonActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
+  tabItem: {
+    flex: 1,
+    paddingVertical: Spacing.md,
+    alignItems: 'center',
   },
-  dateDay: {
-    fontSize: Typography.sizes.caption,
+  tabActive: {
+    borderBottomColor: Colors.primary,
+    borderBottomWidth: 3,
+  },
+  tabLabel: {
+    fontSize: Typography.sizes.bodySmall,
     color: Colors.text.secondary,
-    fontWeight: '500',
-  },
-  dateNumber: {
-    fontSize: Typography.sizes.body,
-    fontWeight: 'bold',
-    color: Colors.text.primary,
-    marginTop: Spacing.xs,
-  },
-  dateNumberActive: {
-    color: Colors.white,
+    fontWeight: '600',
   },
 
   section: {
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.lg,
+  },
+  captureCard: {
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.lg,
+    backgroundColor: '#F6F8FB',
+    borderRadius: BorderRadius.xl,
+    borderStyle: 'dashed',
+    borderWidth: 1,
+    borderColor: '#C9D4E5',
+    padding: Spacing.lg,
+    alignItems: 'center',
+  },
+  captureEmoji: {
+    fontSize: Typography.sizes.h1,
+  },
+  captureTitle: {
+    marginTop: Spacing.sm,
+    fontSize: Typography.sizes.body,
+    fontWeight: '700',
+    color: Colors.text.primary,
+  },
+  captureSubtitle: {
+    marginTop: Spacing.xs,
+    color: Colors.text.secondary,
+    fontSize: Typography.sizes.bodySmall,
+  },
+  captureButtonsRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    marginTop: Spacing.md,
+  },
+  primaryPillButton: {
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.circular,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+  },
+  primaryPillText: {
+    color: Colors.white,
+    fontWeight: '700',
+    fontSize: Typography.sizes.bodySmall,
+  },
+  secondaryPillButton: {
+    borderRadius: BorderRadius.circular,
+    borderWidth: 1,
+    borderColor: Colors.lightGray,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    backgroundColor: Colors.white,
+  },
+  secondaryPillText: {
+    color: Colors.text.primary,
+    fontWeight: '600',
+    fontSize: Typography.sizes.bodySmall,
+  },
+  analyzeButton: {
+    marginTop: Spacing.md,
+    backgroundColor: Colors.primaryDark,
+    borderRadius: BorderRadius.lg,
+    width: '100%',
+    alignItems: 'center',
+    paddingVertical: Spacing.md,
+  },
+  analyzeButtonText: {
+    color: Colors.white,
+    fontWeight: '700',
+  },
+  inputBox: {
+    marginTop: Spacing.md,
+    width: '100%',
+    borderWidth: 1,
+    borderColor: Colors.lightGray,
+    borderRadius: BorderRadius.lg,
+    backgroundColor: Colors.white,
+    padding: Spacing.md,
+    minHeight: scale(90),
+    textAlignVertical: 'top',
+  },
+  detectedCard: {
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.lg,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    borderRadius: BorderRadius.xl,
+    backgroundColor: Colors.primaryTint,
+    padding: Spacing.lg,
+  },
+  detectedLabel: {
+    color: '#E11D9A',
+    fontSize: Typography.sizes.caption,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  detectedMealName: {
+    marginTop: Spacing.sm,
+    fontSize: Typography.sizes.h4,
+    color: Colors.text.primary,
+    fontWeight: '700',
+  },
+  detectedMeta: {
+    marginTop: Spacing.xs,
+    color: Colors.text.secondary,
+  },
+  tagsRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    marginTop: Spacing.sm,
+    flexWrap: 'wrap',
+  },
+  tagChip: {
+    backgroundColor: '#D1FAE5',
+    borderRadius: BorderRadius.circular,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: scale(4),
+  },
+  tagChipText: {
+    color: '#065F46',
+    fontSize: Typography.sizes.caption,
+    fontWeight: '700',
+  },
+  mealTypeTitle: {
+    marginTop: Spacing.md,
+    fontWeight: '700',
+    color: Colors.text.primary,
+  },
+  mealTypeRow: {
+    marginTop: Spacing.sm,
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    flexWrap: 'wrap',
+  },
+  mealTypeChip: {
+    borderWidth: 1,
+    borderColor: Colors.lightGray,
+    borderRadius: BorderRadius.lg,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    backgroundColor: Colors.white,
+  },
+  mealTypeChipActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  mealTypeChipText: {
+    color: Colors.text.secondary,
+    fontSize: Typography.sizes.bodySmall,
+  },
+  mealTypeChipTextActive: {
+    color: Colors.white,
+    fontWeight: '700',
   },
   sectionTitle: {
     fontSize: Typography.sizes.h4,
@@ -254,53 +532,17 @@ const styles = StyleSheet.create({
     color: Colors.text.primary,
     marginBottom: Spacing.md,
   },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  saveMealButton: {
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.xl,
     alignItems: 'center',
-    marginBottom: Spacing.md,
+    paddingVertical: Spacing.md,
+    marginBottom: Spacing.lg,
   },
-
-  calorieCard: {
-    backgroundColor: Colors.white,
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.lg,
-    gap: Spacing.lg,
-  },
-  calorieValue: {
-    fontSize: Typography.sizes.h2,
-    fontWeight: 'bold',
-    color: Colors.primary,
-  },
-  calorieLabel: {
+  saveMealButtonText: {
+    color: Colors.white,
+    fontWeight: '700',
     fontSize: Typography.sizes.body,
-    color: Colors.text.secondary,
-  },
-  calorieRemaining: {
-    fontSize: Typography.sizes.bodySmall,
-    color: Colors.text.secondary,
-    marginTop: Spacing.sm,
-  },
-  progressBar: {
-    height: scale(8),
-    backgroundColor: Colors.light,
-    borderRadius: scale(4),
-    overflow: 'hidden',
-  },
-  progressBarFill: {
-    height: '100%',
-    borderRadius: 4,
-  },
-
-  addMealButton: {
-    fontSize: Typography.sizes.bodySmall,
-    color: Colors.primary,
-    fontWeight: 'bold',
-  },
-  logVitalsButton: {
-    fontSize: Typography.sizes.bodySmall,
-    color: Colors.primary,
-    fontWeight: 'bold',
   },
 
   mealListItem: {
@@ -327,65 +569,31 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: Colors.primary,
   },
-  editLink: {
-    fontSize: Typography.sizes.bodySmall,
-    color: Colors.primary,
-    fontWeight: '500',
-  },
-
-  vitalsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.md,
-  },
-  vitalCard: {
-    flex: 1,
-    minWidth: '45%',
-    backgroundColor: Colors.white,
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.lg,
-    alignItems: 'center',
-  },
-  vitalIcon: {
-    fontSize: Typography.sizes.h2,
-    marginBottom: Spacing.sm,
-  },
-  vitalValue: {
-    fontSize: Typography.sizes.h4,
-    fontWeight: 'bold',
-    color: Colors.text.primary,
-  },
-  vitalLabel: {
-    fontSize: Typography.sizes.caption,
-    color: Colors.text.secondary,
-    marginTop: Spacing.xs,
-  },
-  vitalEditIcon: {
-    marginTop: Spacing.sm,
-  },
 
   emptyState: {
     alignItems: 'center',
-    paddingVertical: Spacing.xl,
-  },
-  emptyIcon: {
-    fontSize: moderateScale(48, 0.45),
-    marginBottom: Spacing.md,
+    paddingVertical: Spacing.lg,
   },
   emptyText: {
     fontSize: Typography.sizes.body,
     color: Colors.text.secondary,
   },
 
-  fabHint: {
-    backgroundColor: Colors.secondaryTint,
+  calorieSummary: {
+    marginTop: Spacing.sm,
     marginHorizontal: Spacing.lg,
+    borderRadius: BorderRadius.xl,
+    backgroundColor: Colors.white,
     padding: Spacing.lg,
-    borderRadius: BorderRadius.lg,
-    alignItems: 'center',
   },
-  fabHintText: {
-    fontSize: Typography.sizes.bodySmall,
+  calorieSummaryTitle: {
     color: Colors.text.secondary,
+    fontSize: Typography.sizes.bodySmall,
+  },
+  calorieSummaryValue: {
+    marginTop: Spacing.xs,
+    color: Colors.primary,
+    fontWeight: '700',
+    fontSize: Typography.sizes.h3,
   },
 })

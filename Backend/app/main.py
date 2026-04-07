@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes.auth import router as auth_router
 from app.api.routes.health import router as health_router
 from app.api.routes.onboarding import router as onboarding_router
+from app.api.routes.patient_rag import router as patient_rag_router
 from app.api.routes.patients import router as patients_router
 from app.core.config import settings
 from app.db.seed import bootstrap_database
@@ -35,3 +36,4 @@ app.include_router(health_router, prefix=settings.api_v1_prefix)
 app.include_router(auth_router, prefix=settings.api_v1_prefix)
 app.include_router(onboarding_router, prefix=settings.api_v1_prefix)
 app.include_router(patients_router, prefix=settings.api_v1_prefix)
+app.include_router(patient_rag_router, prefix=settings.api_v1_prefix)

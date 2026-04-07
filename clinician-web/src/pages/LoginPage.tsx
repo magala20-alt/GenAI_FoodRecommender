@@ -99,11 +99,10 @@ export function LoginPage() {
             </div>
 
             {/* Forgot Password Link */}
-            {/* to be handled later */}
             <div className="text-right">
-              <a href="#" className="text-teal-400 hover:text-teal-300 text-sm font-medium transition">
+              <button type="button" onClick={() => navigate('/forgot-password')} className="text-teal-400 hover:text-teal-300 text-sm font-medium transition">
                 Forgot password?
-              </a>
+              </button>
             </div>
 
             {/* Submit Button */}

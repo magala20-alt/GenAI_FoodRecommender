@@ -81,4 +81,16 @@ export const authService = {
     const response = await apiClient.post<BackendUser>('/onboarding/complete', payload)
     return mapUser(response)
   },
+
+  async requestPasswordReset(email: string): Promise<{ detail: string }> {
+    return apiClient.post<{ detail: string }>('/auth/forgot-password', { email })
+  },
+
+  async verifyPasswordResetToken(token: string): Promise<{ valid: boolean }> {
+    return apiClient.get<{ valid: boolean }>(`/auth/reset-password/verify?token=${encodeURIComponent(token)}`)
+  },
+
+  async resetPassword(token: string, newPassword: string): Promise<{ detail: string }> {
+    return apiClient.post<{ detail: string }>('/auth/reset-password', { token, newPassword })
+  },
 }

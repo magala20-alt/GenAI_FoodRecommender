@@ -39,6 +39,33 @@ class ChangePasswordRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordVerifyRequest(BaseModel):
+    token: str
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str = Field(alias="newPassword")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class ForgotPasswordResponse(BaseModel):
+    detail: str
+
+
+class ResetPasswordVerifyResponse(BaseModel):
+    valid: bool
+
+
+class ResetPasswordResponse(BaseModel):
+    detail: str
+
+
 class AdminCreateClinicianRequest(BaseModel):
     first_name: str = Field(alias="firstName")
     last_name: str = Field(alias="lastName")

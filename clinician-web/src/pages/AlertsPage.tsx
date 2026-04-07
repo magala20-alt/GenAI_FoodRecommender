@@ -1,24 +1,11 @@
-import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 
 import { useAuth } from '../hooks'
+import { patientService, type AlertsSummary, type PatientAlert } from '../services/patientService'
 
 type AlertPriority = 'High' | 'Medium' | 'Low'
-type AlertStatus = 'Open' | 'Resolved'
-
-type AlertItem = {
-  id: number
-  patientName: string
-  patientMeta: string
-  initials: string
-  avatarGradient: string
-  type: string
-  details: string
-  triggered: string
-  priority: AlertPriority
-  status: AlertStatus
-  actions: string[]
-}
+type AlertStatus = 'Open' | 'Dismissed'
 
 const navMainBase = ['Dashboard', 'Patients', 'AI Summaries', 'Alerts']
 const navTools = ['Schedule']
@@ -32,87 +19,6 @@ const navIcons: Record<string, string> = {
   Schedule: '📅',
 }
 
-const alerts: AlertItem[] = [
-  {
-    id: 1,
-    patientName: 'Sarah Mensah',
-    patientMeta: 'Age 42 · Type 2',
-    initials: 'SM',
-    avatarGradient: 'from-teal-600 to-sky-500',
-    type: '🔴 High Disengagement',
-    details: 'Risk score 0.87 · Meals missed 4 days · 3 app sessions in 7d',
-    triggered: 'Today · 08:14',
-    priority: 'High',
-    status: 'Open',
-    actions: ['Intervene', 'View'],
-  },
-  {
-    id: 2,
-    patientName: 'James Tekeba',
-    patientMeta: 'Age 57 · Type 2',
-    initials: 'JT',
-    avatarGradient: 'from-violet-700 to-fuchsia-500',
-    type: '🔴 Rising BP',
-    details: 'Systolic 142 mmHg · Threshold 140 · 3 consecutive readings',
-    triggered: 'Today · 07:55',
-    priority: 'High',
-    status: 'Open',
-    actions: ['Intervene', 'View'],
-  },
-  {
-    id: 3,
-    patientName: 'David Osei',
-    patientMeta: 'Age 64 · Type 2',
-    initials: 'DO',
-    avatarGradient: 'from-emerald-600 to-green-500',
-    type: '🔴 Glucose Spike',
-    details: 'Fasting glucose 11.8 mmol/L · Above threshold 11.0',
-    triggered: 'Yesterday · 22:10',
-    priority: 'High',
-    status: 'Open',
-    actions: ['Intervene', 'View'],
-  },
-  {
-    id: 4,
-    patientName: 'Priya Krishnan',
-    patientMeta: 'Age 38 · Type 2',
-    initials: 'PK',
-    avatarGradient: 'from-orange-600 to-amber-500',
-    type: '🟡 Weight Gain Projected',
-    details: '+1.4 kg forecast over 14 days · Caloric excess +18%',
-    triggered: 'Yesterday · 09:30',
-    priority: 'Medium',
-    status: 'Open',
-    actions: ['Note', 'View'],
-  },
-  {
-    id: 5,
-    patientName: 'Amina Nkosi',
-    patientMeta: 'Age 45 · Type 2',
-    initials: 'AN',
-    avatarGradient: 'from-sky-600 to-cyan-400',
-    type: '🟡 Missed Appointment',
-    details: 'Check-in scheduled Mar 3 not attended · Rebook needed',
-    triggered: 'Mar 3 · 14:00',
-    priority: 'Medium',
-    status: 'Open',
-    actions: ['Rebook', 'View'],
-  },
-  {
-    id: 6,
-    patientName: 'Sarah Mensah',
-    patientMeta: 'Age 42 · Type 2',
-    initials: 'SM',
-    avatarGradient: 'from-teal-600 to-sky-500',
-    type: '🟢 Resolved',
-    details: 'Meal plan regenerated · Patient re-engaged',
-    triggered: 'Mar 4 · 11:20',
-    priority: 'Low',
-    status: 'Resolved',
-    actions: [],
-  },
-]
-
 function clsx(...tokens: Array<string | false | undefined>) {
   return tokens.filter(Boolean).join(' ')
 }
@@ -124,7 +30,7 @@ function badgeForPriority(priority: AlertPriority) {
 }
 
 function statusBadge(status: AlertStatus) {
-  return status === 'Resolved' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+  return status === 'Dismissed' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
 }
 
 function rowBorder(priority: AlertPriority) {
@@ -135,8 +41,15 @@ function rowBorder(priority: AlertPriority) {
 
 export function AlertsPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { user, logout } = useAuth()
   const [activeNav, setActiveNav] = useState('Alerts')
+  const [alerts, setAlerts] = useState<PatientAlert[]>([])
+  const [summary, setSummary] = useState<AlertsSummary>({ openCount: 0, highCount: 0, mediumCount: 0, lowCount: 0 })
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [searchText, setSearchText] = useState('')
+  const [dismissingIds, setDismissingIds] = useState<Record<string, boolean>>({})
 
   const clinicianName = user ? `${user.firstName} ${user.lastName}` : 'Unknown User'
   const clinicianInitials = user ? `${user.firstName[0] ?? ''}${user.lastName[0] ?? ''}`.toUpperCase() : 'NA'
@@ -149,11 +62,90 @@ export function AlertsPage() {
     return navMainBase
   }, [user?.role])
 
-  const activeCount = alerts.filter(alert => alert.status === 'Open').length
-  const highCount = alerts.filter(alert => alert.priority === 'High' && alert.status === 'Open').length
-  const mediumCount = alerts.filter(alert => alert.priority === 'Medium' && alert.status === 'Open').length
-  const lowCount = alerts.filter(alert => alert.priority === 'Low').length
-  const resolvedToday = 2
+  const patientFilterId = searchParams.get('patientId')
+
+  useEffect(() => {
+    let isActive = true
+    const load = async () => {
+      try {
+        setIsLoading(true)
+        setError(null)
+        const [alertsResp, summaryResp] = await Promise.all([
+          patientService.getAlerts(patientFilterId ?? undefined),
+          patientService.getAlertsSummary(),
+        ])
+        if (!isActive) return
+        setAlerts(alertsResp)
+        setSummary(summaryResp)
+      } catch (loadError) {
+        if (!isActive) return
+        const message = loadError instanceof Error ? loadError.message : 'Failed to load alerts'
+        setError(message)
+      } finally {
+        if (isActive) setIsLoading(false)
+      }
+    }
+    void load()
+    return () => {
+      isActive = false
+    }
+  }, [patientFilterId])
+
+  const filteredAlerts = useMemo(() => {
+    const q = searchText.trim().toLowerCase()
+    if (!q) return alerts
+    return alerts.filter(alert => {
+      const haystack = [alert.patientName, alert.alertType, alert.message, alert.llmReason ?? '', alert.severity, alert.status].join(' ').toLowerCase()
+      return haystack.includes(q)
+    })
+  }, [alerts, searchText])
+
+  const activeCount = summary.openCount
+  const highCount = summary.highCount
+  const mediumCount = summary.mediumCount
+  const lowCount = summary.lowCount
+
+  const dismissedCount = useMemo(() => alerts.filter(alert => alert.status === 'Dismissed').length, [alerts])
+
+  const formatTriggered = (iso: string) => {
+    const date = new Date(iso)
+    return date.toLocaleString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  }
+
+  const toPriority = (p: PatientAlert['severity']): AlertPriority => {
+    if (p === 'High') return 'High'
+    if (p === 'Medium') return 'Medium'
+    return 'Low'
+  }
+
+  const toStatus = (s: PatientAlert['status']): AlertStatus => {
+    return s === 'Dismissed' ? 'Dismissed' : 'Open'
+  }
+
+  const handleDismiss = async (alertId: number | string) => {
+    const key = String(alertId)
+    try {
+      setDismissingIds(prev => ({ ...prev, [key]: true }))
+      await patientService.dismissAlert(alertId)
+      const [alertsResp, summaryResp] = await Promise.all([
+        patientService.getAlerts(patientFilterId ?? undefined),
+        patientService.getAlertsSummary(),
+      ])
+      setAlerts(alertsResp)
+      setSummary(summaryResp)
+    } catch (dismissError) {
+      const message = dismissError instanceof Error ? dismissError.message : 'Failed to dismiss alert'
+      setError(message)
+    } finally {
+      setDismissingIds(prev => ({ ...prev, [key]: false }))
+    }
+  }
 
   const handleNavClick = (item: string) => {
     setActiveNav(item)
@@ -226,14 +218,24 @@ export function AlertsPage() {
         <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between shrink-0">
           <div>
             <h1 className="text-xl font-bold text-slate-900">Alerts</h1>
-            <p className="text-xs text-slate-500 mt-0.5">{activeCount} active · {resolvedToday} resolved today</p>
+            <p className="text-xs text-slate-500 mt-0.5">
+              {activeCount} active · {dismissedCount} dismissed
+              {patientFilterId ? ' · filtered by patient' : ''}
+            </p>
           </div>
 
           <div className="flex items-center gap-2">
             <button className="text-xs border border-red-200 text-red-600 bg-red-50 px-2.5 py-1 rounded-full">🔴 High</button>
             <button className="text-xs border border-amber-200 text-amber-700 bg-amber-50 px-2.5 py-1 rounded-full">🟡 Medium</button>
             <button className="text-xs border border-emerald-200 text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full">🟢 Low</button>
-            <button className="text-sm border border-slate-200 bg-white hover:bg-slate-50 px-3 py-1.5 rounded-lg">✓ Resolve All</button>
+            {patientFilterId && (
+              <button
+                onClick={() => navigate('/alerts')}
+                className="text-sm border border-slate-200 bg-white hover:bg-slate-50 px-3 py-1.5 rounded-lg"
+              >
+                Clear Filter
+              </button>
+            )}
           </div>
         </header>
 
@@ -252,18 +254,28 @@ export function AlertsPage() {
               <p className="text-xs font-semibold text-emerald-700">Low / Info</p>
             </div>
             <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-center">
-              <p className="text-2xl font-bold text-slate-600">{resolvedToday}</p>
-              <p className="text-xs font-semibold text-slate-500">Resolved Today</p>
+              <p className="text-2xl font-bold text-slate-600">{dismissedCount}</p>
+              <p className="text-xs font-semibold text-slate-500">Dismissed</p>
             </div>
           </div>
 
           <div className="bg-white border border-slate-200 rounded-xl overflow-hidden flex-1 min-h-[360px]">
             <div className="px-4 py-3 border-b border-slate-200 bg-slate-50 flex items-center justify-between gap-2">
               <h2 className="text-sm font-bold text-slate-900">Active Alerts</h2>
-              <div className="w-[210px] bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-500">🔍 Search patient...</div>
+              <input
+                value={searchText}
+                onChange={event => setSearchText(event.target.value)}
+                placeholder="Search patient or reason..."
+                className="w-[260px] bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 outline-none focus:ring-2 focus:ring-teal-500"
+              />
             </div>
 
             <div className="overflow-auto h-full">
+              {isLoading && <div className="px-4 py-6 text-sm text-slate-500">Loading alerts...</div>}
+              {error && <div className="px-4 py-6 text-sm text-red-600">{error}</div>}
+              {!isLoading && !error && filteredAlerts.length === 0 && (
+                <div className="px-4 py-6 text-sm text-slate-500">No alerts found.</div>
+              )}
               <table className="w-full min-w-[980px] text-sm">
                 <thead className="bg-white border-b border-slate-200">
                   <tr className="text-left text-xs uppercase tracking-wider text-slate-500">
@@ -277,56 +289,67 @@ export function AlertsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {alerts.map(alert => (
+                  {filteredAlerts.map(alert => {
+                    const priority = toPriority(alert.severity)
+                    const status = toStatus(alert.status)
+                    return (
                     <tr
                       key={alert.id}
                       className={clsx(
                         'border-b border-slate-100 last:border-b-0 border-l-[3px]',
-                        rowBorder(alert.priority),
-                        alert.status === 'Resolved' && 'opacity-60',
+                        rowBorder(priority),
+                        status === 'Dismissed' && 'opacity-60',
                       )}
                     >
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
-                          <div className={clsx('w-8 h-8 rounded-full text-white text-xs font-bold flex items-center justify-center bg-gradient-to-br', alert.avatarGradient)}>{alert.initials}</div>
+                          <div className="w-8 h-8 rounded-full text-white text-xs font-bold flex items-center justify-center bg-gradient-to-br from-teal-600 to-sky-500">
+                            {alert.patientName
+                              .split(' ')
+                              .map(part => part[0] ?? '')
+                              .join('')
+                              .slice(0, 2)
+                              .toUpperCase()}
+                          </div>
                           <div>
                             <p className="text-sm font-semibold text-slate-800">{alert.patientName}</p>
-                            <p className="text-xs text-slate-500">{alert.patientMeta}</p>
+                            <p className="text-xs text-slate-500">{alert.patientId}</p>
                           </div>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-xs font-semibold text-slate-700">{alert.type}</td>
-                      <td className="px-4 py-3 text-xs text-slate-500">{alert.details}</td>
-                      <td className="px-4 py-3 text-xs text-slate-700 whitespace-nowrap">{alert.triggered}</td>
+                      <td className="px-4 py-3 text-xs font-semibold text-slate-700">{alert.alertType}</td>
+                      <td className="px-4 py-3 text-xs text-slate-500">{alert.llmReason ?? alert.message}</td>
+                      <td className="px-4 py-3 text-xs text-slate-700 whitespace-nowrap">{formatTriggered(alert.createdAt)}</td>
                       <td className="px-4 py-3">
-                        <span className={clsx('text-xs font-semibold px-2 py-0.5 rounded-full', badgeForPriority(alert.priority))}>{alert.priority}</span>
+                        <span className={clsx('text-xs font-semibold px-2 py-0.5 rounded-full', badgeForPriority(priority))}>{priority}</span>
                       </td>
                       <td className="px-4 py-3">
-                        <span className={clsx('text-xs font-semibold px-2 py-0.5 rounded-full', statusBadge(alert.status))}>{alert.status}</span>
+                        <span className={clsx('text-xs font-semibold px-2 py-0.5 rounded-full', statusBadge(status))}>{status}</span>
                       </td>
                       <td className="px-4 py-3">
-                        {alert.actions.length > 0 ? (
+                        {status === 'Open' ? (
                           <div className="flex gap-1.5">
-                            {alert.actions.map(action => (
-                              <button
-                                key={action}
-                                className={clsx(
-                                  'text-xs px-2.5 py-1 rounded-md border',
-                                  action === 'Intervene'
-                                    ? 'bg-teal-500 border-teal-500 text-white hover:bg-teal-600'
-                                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50',
-                                )}
-                              >
-                                {action}
-                              </button>
-                            ))}
+                            <button
+                              onClick={() => navigate(`/patients/${alert.patientId}?tab=care-plan`)}
+                              className="text-xs px-2.5 py-1 rounded-md border bg-teal-500 border-teal-500 text-white hover:bg-teal-600"
+                            >
+                              Intervene
+                            </button>
+                            <button
+                              onClick={() => handleDismiss(alert.id)}
+                              disabled={Boolean(dismissingIds[String(alert.id)])}
+                              className="text-xs px-2.5 py-1 rounded-md border bg-white border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-60"
+                            >
+                              {dismissingIds[String(alert.id)] ? 'Dismissing...' : 'Dismiss'}
+                            </button>
                           </div>
                         ) : (
                           <span className="text-xs text-slate-500">No action needed</span>
                         )}
                       </td>
                     </tr>
-                  ))}
+                    )
+                  })}
                 </tbody>
               </table>
             </div>

@@ -5,6 +5,7 @@ from app.core.security import get_password_hash
 from app.db.base import Base
 from app.db.session import SessionLocal, engine
 from app.models.patient_onboarding import PatientOnboarding
+from app.models.patient_alert import PatientAlert
 from app.models.user import User, UserRole
 
 # This module contains functions to initialize the database and seed it with default auth data.

@@ -2,7 +2,14 @@ import { ChatMessage } from '../types'
 import { apiClient } from './apiClient'
 import { mockChatMessages } from '../mocks'
 
-const USE_MOCK = true // Set to false when backend is ready
+const USE_MOCK = false
+
+type RecommendationResponse = {
+  response: string
+  retrievedMeals: Array<Record<string, unknown>>
+  sources: string[]
+  numMealsRetrieved: number
+}
 
 export const chatService = {
   async sendMessage(message: string): Promise<string> {
@@ -22,7 +29,19 @@ export const chatService = {
       })
     }
 
-    return apiClient.post<string>('/chat/message', { message })
+    const result = await apiClient.post<RecommendationResponse>('/patient-rag/recommendations', {
+      query: message,
+      includeExamples: true,
+      kRetrieved: 5,
+    })
+
+    const base = (result.response || '').trim() || 'I could not find a strong recommendation from your current meal context.'
+    if (!result.sources || result.sources.length === 0) {
+      return base
+    }
+
+    const sourceList = result.sources.slice(0, 3).join(', ')
+    return `${base}\n\nSources: ${sourceList}`
   },
 
   async *streamMessage(message: string): AsyncGenerator<string> {
@@ -43,7 +62,8 @@ export const chatService = {
       return
     }
 
-    yield* apiClient.stream('/chat/stream', { message })
+    const full = await this.sendMessage(message)
+    yield full
   },
 
   async getChatHistory(): Promise<ChatMessage[]> {

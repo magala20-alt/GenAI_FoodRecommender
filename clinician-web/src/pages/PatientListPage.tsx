@@ -9,6 +9,15 @@ type RiskFilter = 'All patients' | 'High' | 'Medium' | 'Low' | 'Has Alerts'
 
 const navMain = ['Dashboard', 'Patients', 'AI Summaries', 'Alerts']
 const navTools = ['Schedule']
+const aiQuickFilters = ['High risk only', 'Rising BP', 'Missed meals 3+ days', 'Weight gain projected', 'Low adherence']
+
+const aiPromptMap: Record<string, string> = {
+  'High risk only': 'Show high-risk patients only',
+  'Rising BP': 'Show patients with rising blood pressure this week',
+  'Missed meals 3+ days': 'Find patients who missed meals for 3 or more days',
+  'Weight gain projected': 'Find patients with projected weight gain trend',
+  'Low adherence': 'Show patients with low adherence below target',
+}
 
 const navIcons: Record<string, string> = {
   Dashboard: '⊞',
@@ -54,41 +63,73 @@ export function PatientListPage() {
   const [activeFilter, setActiveFilter] = useState<RiskFilter>('All patients')
   const [currentPage, setCurrentPage] = useState(1)
   const [patients, setPatients] = useState<ClinicianPatientListItem[]>([])
+  const [openAlertsCount, setOpenAlertsCount] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [aiQuery, setAiQuery] = useState('')
+  const [isAIFiltering, setIsAIFiltering] = useState(false)
+  const [aiFilteredIds, setAiFilteredIds] = useState<string[] | null>(null)
+  const [aiReasoning, setAiReasoning] = useState<string | null>(null)
+  const [aiFiltersApplied, setAiFiltersApplied] = useState<string[]>([])
 
   const clinicianName = user ? `${user.firstName} ${user.lastName}` : 'Unknown User'
   const clinicianInitials = user ? `${user.firstName[0] ?? ''}${user.lastName[0] ?? ''}`.toUpperCase() : 'NA'
   const clinicianRole = user?.role === 'admin' ? 'Administrator' : 'Clinician'
 
   useEffect(() => {
-    const loadPatients = async () => {
-      setIsLoading(true)
+    let isActive = true
+
+    const loadPatients = async (showLoading = false) => {
+      if (showLoading) {
+        setIsLoading(true)
+      }
       setError(null)
       try {
-        const list = await patientService.getPatientListForClinician()
-        setPatients(list)
+        const [list, summary] = await Promise.all([
+          patientService.getPatientListForClinician(),
+          patientService.getAlertsSummary(),
+        ])
+        if (isActive) {
+          setPatients(list)
+          setOpenAlertsCount(summary.openCount)
+        }
       } catch (loadError) {
-        setError(loadError instanceof Error ? loadError.message : 'Failed to load patients')
+        if (isActive) {
+          setError(loadError instanceof Error ? loadError.message : 'Failed to load patients')
+        }
       } finally {
-        setIsLoading(false)
+        if (isActive && showLoading) {
+          setIsLoading(false)
+        }
       }
     }
 
-    loadPatients()
+    void loadPatients(true)
+    const refreshTimer = window.setInterval(() => {
+      void loadPatients(false)
+    }, 15000)
+
+    return () => {
+      isActive = false
+      window.clearInterval(refreshTimer)
+    }
   }, [])
 
   const filteredPatients = useMemo(() => {
     return patients.filter(patient => {
+      if (aiFilteredIds && !aiFilteredIds.includes(patient.id)) {
+        return false
+      }
+
       const fullName = `${patient.firstName} ${patient.lastName}`.toLowerCase()
       const matchesSearch = `${fullName} ${patient.email}`.includes(searchText.toLowerCase())
       if (!matchesSearch) return false
 
       if (activeFilter === 'All patients') return true
-      if (activeFilter === 'Has Alerts') return Boolean(patient.alerts)
+      if (activeFilter === 'Has Alerts') return Boolean(patient.alerts) || (patient.alertsCount ?? 0) > 0
       return patient.riskLevel === activeFilter
     })
-  }, [patients, searchText, activeFilter])
+  }, [patients, aiFilteredIds, searchText, activeFilter])
 
   useEffect(() => {
     setCurrentPage(1)
@@ -120,8 +161,35 @@ export function PatientListPage() {
   }
 
   const clearAIFilter = () => {
+    setAiQuery('')
+    setAiFilteredIds(null)
+    setAiReasoning(null)
+    setAiFiltersApplied([])
     setActiveFilter('All patients')
     setSearchText('')
+  }
+
+  const applyAIFilter = async (queryOverride?: string) => {
+    const queryToRun = (queryOverride ?? aiQuery).trim()
+    if (!queryToRun) {
+      clearAIFilter()
+      return
+    }
+
+    try {
+      setIsAIFiltering(true)
+      setError(null)
+      setAiQuery(queryToRun)
+      const result = await patientService.filterPatientsWithAI(queryToRun)
+      setAiFilteredIds(result.matchingPatientIds)
+      setAiReasoning(result.reasoning || null)
+      setAiFiltersApplied(result.filtersApplied || [])
+      setCurrentPage(1)
+    } catch (filterError) {
+      setError(filterError instanceof Error ? filterError.message : 'Unable to apply AI filter right now')
+    } finally {
+      setIsAIFiltering(false)
+    }
   }
 
   return (
@@ -146,7 +214,7 @@ export function PatientListPage() {
               <span>{navIcons[item]}</span>
               <span>{item}</span>
               {item === 'Alerts' && (
-                <span className="ml-auto bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">4</span>
+                <span className="ml-auto bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">{openAlertsCount}</span>
               )}
             </button>
           ))}
@@ -181,7 +249,7 @@ export function PatientListPage() {
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col overflow-hidden">
+      <main className="flex-1 flex flex-col overflow-hidden min-h-0">
         <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between shrink-0">
           <h1 className="text-xl font-bold text-slate-900">Patients</h1>
           <div className="flex items-center gap-2">
@@ -203,7 +271,7 @@ export function PatientListPage() {
           </div>
         </header>
 
-        <section className="flex-1 overflow-y-auto p-4 md:p-5 flex flex-col gap-3">
+        <section className="flex-1 overflow-y-auto p-4 md:p-5 flex flex-col gap-3 min-h-0">
           <div className="rounded-xl bg-slate-900 border border-slate-800 px-4 py-3">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
               <div className="flex items-center gap-2">
@@ -214,18 +282,60 @@ export function PatientListPage() {
               <p className="text-xs text-white/40">Ask in plain English to filter patients</p>
             </div>
 
-            <div className="mt-2 rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-white/80">💬 "Show me high-risk patients with rising blood pressure this week"</div>
+            <div className="mt-2 rounded-lg bg-white/5 border border-white/10 px-3 py-2">
+              <div className="flex gap-2 items-center">
+                <span className="text-sm text-white/80">💬</span>
+                <input
+                  value={aiQuery}
+                  onChange={event => setAiQuery(event.target.value)}
+                  onKeyDown={event => {
+                    if (event.key === 'Enter') {
+                      void applyAIFilter()
+                    }
+                  }}
+                  placeholder="Show me high-risk patients with rising blood pressure this week"
+                  className="w-full bg-transparent text-sm text-white placeholder:text-white/40 outline-none"
+                />
+                <button
+                  onClick={() => void applyAIFilter()}
+                  disabled={isAIFiltering}
+                  className="text-xs font-semibold bg-teal-500 hover:bg-teal-600 disabled:bg-teal-400 text-white px-2.5 py-1 rounded-md"
+                >
+                  {isAIFiltering ? 'Filtering...' : 'Run'}
+                </button>
+              </div>
+            </div>
 
             <div className="mt-2.5 flex flex-wrap gap-1.5">
-              {['High risk only', 'Rising BP', 'Missed meals 3+ days', 'Weight gain projected', 'Low adherence'].map(chip => (
-                <span key={chip} className="text-xs rounded-full bg-white/10 text-teal-100 px-2.5 py-1">{chip}</span>
+              {aiQuickFilters.map(chip => (
+                <button
+                  key={chip}
+                  onClick={() => void applyAIFilter(aiPromptMap[chip])}
+                  className="text-xs rounded-full bg-white/10 text-teal-100 px-2.5 py-1 hover:bg-white/20"
+                >
+                  {chip}
+                </button>
               ))}
             </div>
 
             <div className="mt-2.5 bg-white/5 rounded-lg px-3 py-2 flex items-center justify-between gap-2">
-              <p className="text-sm text-white/70">ℹ️ List populated from clinician assignments table. Risk, adherence, and alerts are currently null.</p>
-              <button onClick={clearAIFilter} className="text-xs text-teal-300 hover:text-teal-200">Clear filter �</button>
+              <p className="text-sm text-white/70">
+                {aiReasoning
+                  ? `AI: ${aiReasoning}`
+                  : 'List populated from clinician assignments with backend risk and adherence metrics.'}
+              </p>
+              <button onClick={clearAIFilter} className="text-xs text-teal-300 hover:text-teal-200">Clear filter</button>
             </div>
+
+            {aiFiltersApplied.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {aiFiltersApplied.map(filter => (
+                  <span key={filter} className="text-[11px] rounded-full bg-teal-900/70 text-teal-100 px-2 py-0.5">
+                    {filter}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="flex gap-1.5 flex-wrap items-center">
@@ -239,8 +349,8 @@ export function PatientListPage() {
 
           {error && <div className="text-sm font-medium text-red-600">{error}</div>}
 
-          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-            <div className="overflow-auto max-h-[480px]">
+          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col flex-1 min-h-0">
+            <div className="overflow-auto flex-1 min-h-0">
               <table className="w-full min-w-[860px]">
                 <thead className="bg-slate-50 border-b border-slate-200">
                   <tr>
@@ -259,6 +369,7 @@ export function PatientListPage() {
                       const styles = riskStyles(patient.riskLevel)
                       const hasAlert = Boolean(patient.alerts)
                       const adherencePercent = patient.adherence ?? 0
+                      const adherenceLabel = patient.adherence == null ? 'not updated' : `${patient.adherence}%`
 
                       return (
                         <tr key={patient.id} className="border-b border-slate-100 last:border-b-0">
@@ -282,18 +393,27 @@ export function PatientListPage() {
                               <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden mb-1">
                                 <div className={clsx('h-full rounded-full', styles.bar)} style={{ width: `${adherencePercent}%` }} />
                               </div>
-                              <p className="text-[10px] text-slate-500">{patient.adherence == null ? 'Null' : `${patient.adherence}%`}</p>
+                              <p className="text-[10px] text-slate-500">{adherenceLabel}</p>
                             </div>
                           </td>
                           <td className="px-4 py-3">
-                            <span className={clsx(
-                              'text-xs font-semibold px-2 py-0.5 rounded-full',
-                              !hasAlert && 'bg-slate-100 text-slate-500',
-                              patient.riskLevel === 'High' && hasAlert && 'bg-red-100 text-red-600',
-                              patient.riskLevel === 'Medium' && hasAlert && 'bg-amber-100 text-amber-700',
-                            )}>
-                              {patient.alerts ?? 'Null'}
-                            </span>
+                            <div className="flex flex-col items-start gap-1.5">
+                              <span className={clsx(
+                                'text-xs font-semibold px-2 py-0.5 rounded-full',
+                                !hasAlert && 'bg-slate-100 text-slate-500',
+                                patient.riskLevel === 'High' && hasAlert && 'bg-red-100 text-red-600',
+                                patient.riskLevel === 'Medium' && hasAlert && 'bg-amber-100 text-amber-700',
+                              )}>
+                                <button
+                                onClick={() => navigate(`/alerts?patientId=${encodeURIComponent(patient.id)}`)}
+                                className="text-xs border border-amber-200 bg-amber-50 text-amber-700 px-2.5 py-1 rounded-md hover:bg-amber-100"
+                              >
+                                Alerts ({patient.alertsCount ?? 0})
+                              </button>
+              
+                              </span>
+                              
+                            </div>
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex gap-1.5">
@@ -301,19 +421,19 @@ export function PatientListPage() {
                                 onClick={() => navigate(`/patients/${patient.id}?tab=overview`)}
                                 className="text-xs border border-slate-200 px-2.5 py-1 rounded-md hover:bg-slate-50"
                               >
-                                View
+                                View Profile
                               </button>
                               <button
                                 onClick={() => navigate(`/patients/${patient.id}?tab=care-plan`)}
                                 className="text-xs bg-teal-500 text-white px-2.5 py-1 rounded-md hover:bg-teal-600"
                               >
-                                Intervene
+                                Care Plan
                               </button>
                               <button
                                 onClick={() => navigate(`/patients/${patient.id}?tab=ai-summary`)}
                                 className="text-xs border border-slate-200 px-2.5 py-1 rounded-md hover:bg-slate-50"
                               >
-                                Note
+                                AI summary
                               </button>
                             </div>
                           </td>

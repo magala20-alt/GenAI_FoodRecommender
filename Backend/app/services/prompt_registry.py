@@ -90,6 +90,8 @@ class PromptRegistry:
         """
         if prompt_type == "base" or prompt_type == "search":
             return cls.load_prompt("meals", "SYSTEM_PROMT")
+        elif prompt_type == "snapshot":
+            return cls.load_prompt("meals", "MEAL_SNAPSHOT_EXTRACT_PROMPT")
         else:
             raise ValueError(f"Unknown meal prompt type: {prompt_type}")
     

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_admin, get_current_user
@@ -9,8 +9,13 @@ from app.schemas.auth import (
     AdminCreateClinicianResponse,
     AuthResponse,
     ChangePasswordRequest,
+    ForgotPasswordRequest,
+    ForgotPasswordResponse,
     LoginRequest,
     ProfileUpdateRequest,
+    ResetPasswordRequest,
+    ResetPasswordResponse,
+    ResetPasswordVerifyResponse,
     RefreshTokenRequest,
     RegisterRequest,
 )
@@ -22,18 +27,29 @@ from app.services.auth import (
     create_clinician_by_admin,
     create_refresh_auth_response,
     create_user,
+    complete_password_reset,
+    request_password_reset,
+    verify_password_reset_token,
     update_user_profile,
 )
+from app.services.diabetes_risk import score_patient_risk_for_user_id
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/login", response_model=AuthResponse)
-def login(payload: LoginRequest, db: Session = Depends(get_db)) -> AuthResponse:
+def login(
+    payload: LoginRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+) -> AuthResponse:
     user = authenticate_user(db, email=payload.email, password=payload.password)
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
+
+    # Per-session scoring: refresh patient diabetes risk after the login response is sent.
+    background_tasks.add_task(score_patient_risk_for_user_id, user.id, 0.3)
 
     return build_auth_response(user)
 
@@ -80,6 +96,33 @@ def change_password(
         current_password=payload.current_password,
         new_password=payload.new_password,
     )
+
+
+@router.post("/forgot-password", response_model=ForgotPasswordResponse)
+def forgot_password(
+    payload: ForgotPasswordRequest,
+    db: Session = Depends(get_db),
+) -> ForgotPasswordResponse:
+    request_password_reset(db=db, email=payload.email)
+    return ForgotPasswordResponse(detail="If the email exists, a reset link has been sent.")
+
+
+@router.get("/reset-password/verify", response_model=ResetPasswordVerifyResponse)
+def verify_reset_password(
+    token: str,
+    db: Session = Depends(get_db),
+) -> ResetPasswordVerifyResponse:
+    verify_password_reset_token(db=db, token=token)
+    return ResetPasswordVerifyResponse(valid=True)
+
+
+@router.post("/reset-password", response_model=ResetPasswordResponse)
+def reset_password(
+    payload: ResetPasswordRequest,
+    db: Session = Depends(get_db),
+) -> ResetPasswordResponse:
+    complete_password_reset(db=db, token=payload.token, new_password=payload.new_password)
+    return ResetPasswordResponse(detail="Password updated successfully.")
 
 
 @router.post("/admin/clinicians", response_model=AdminCreateClinicianResponse, status_code=status.HTTP_201_CREATED)

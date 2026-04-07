@@ -2,7 +2,9 @@ import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './hooks'
 import { LoginPage } from './pages/LoginPage'
+import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
 import { ChangePasswordPage } from './pages/ChangePasswordPage'
+import { ResetPasswordPage } from './pages/ResetPasswordPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { SchedulePage } from './pages/SchedulePage'
 import { AlertsPage } from './pages/AlertsPage'
@@ -30,9 +32,11 @@ function AppRoutes() {
 
   return (
     <Routes>
+      <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
       {!user ? (
         <>
-          <Route path="/login" element={<LoginPage />} />
           <Route path="*" element={<Navigate to="/login" replace />} />
         </>
       ) : (
@@ -44,6 +48,7 @@ function AppRoutes() {
             <Route element={<AppLayout />}>
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/schedule" element={<SchedulePage />} />
+              <Route path="/tasks" element={<SchedulePage />} />
               <Route path="/alerts" element={<AlertsPage />} />
               <Route path="/ai-summaries" element={<AISummariesPage />} />
               <Route path="/patients" element={<PatientListPage />} />

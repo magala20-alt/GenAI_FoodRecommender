@@ -8,6 +8,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native'
+import { useNavigation } from '@react-navigation/native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useAuth } from '../../hooks'
 import { Button, TextInput } from '../../components/atoms'
@@ -20,6 +21,7 @@ interface LoginScreenProps {
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
   const { login, isLoading } = useAuth()
+  const navigation = useNavigation<any>()
 
   const [email, setEmail] = useState('admin@caresync.com')
   const [password, setPassword] = useState('Admin@12345')
@@ -62,7 +64,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
   }
 
   const handleForgotPassword = () => {
-    console.log('Navigate to forgot password')
+    navigation.navigate('ForgotPassword')
   }
 
   return (

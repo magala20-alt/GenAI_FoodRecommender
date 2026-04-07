@@ -1,13 +1,29 @@
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
+import hashlib
+import secrets
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.security import create_token, decode_token, get_password_hash, verify_password
+from app.models.password_reset_token import PasswordResetToken
 from app.models.user import User, UserRole
 from app.schemas.auth import AdminCreateClinicianRequest, AuthResponse, ProfileUpdateRequest, RegisterRequest
+from app.services.email_service import send_password_reset_email
+
+
+RESET_TOKEN_EXPIRY_MINUTES = 15
+RESET_REQUEST_LIMIT_PER_HOUR = 3
+
+
+def _normalize_email(email: str) -> str:
+    return email.strip().lower()
+
+
+def _hash_reset_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
 def authenticate_user(db: Session, email: str, password: str) -> User | None:
@@ -101,6 +117,78 @@ def change_user_password(db: Session, user: User, current_password: str, new_pas
     user.password_hash = get_password_hash(new_password)
     user.must_change_password = False
     db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+def request_password_reset(db: Session, email: str) -> None:
+    normalized_email = _normalize_email(email)
+    now = datetime.now(UTC)
+    recent_count = db.scalar(
+        select(func.count(PasswordResetToken.id)).where(
+            PasswordResetToken.email == normalized_email,
+            PasswordResetToken.created_at >= now - timedelta(hours=1),
+        )
+    ) or 0
+
+    if recent_count >= RESET_REQUEST_LIMIT_PER_HOUR:
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Too many password reset attempts. Try again later.")
+
+    user = db.scalar(select(User).where(func.lower(User.email) == normalized_email))
+    if not user:
+        # Return success without revealing whether the email exists.
+        return
+
+    db.execute(
+        delete(PasswordResetToken).where(
+            PasswordResetToken.email == normalized_email,
+            PasswordResetToken.used_at.is_(None),
+        )
+    )
+
+    plain_token = secrets.token_urlsafe(32)
+    reset_token = PasswordResetToken(
+        user_id=user.id,
+        email=normalized_email,
+        token_hash=_hash_reset_token(plain_token),
+        expires_at=now + timedelta(minutes=RESET_TOKEN_EXPIRY_MINUTES),
+    )
+    db.add(reset_token)
+    db.commit()
+
+    reset_url = f"{settings.password_reset_frontend_url}?token={plain_token}"
+    send_password_reset_email(user.email, f"{user.first_name} {user.last_name}".strip(), reset_url)
+
+
+def verify_password_reset_token(db: Session, token: str) -> PasswordResetToken:
+    token_hash = _hash_reset_token(token)
+    now = datetime.now(UTC)
+    reset_token = db.scalar(
+        select(PasswordResetToken).where(
+            PasswordResetToken.token_hash == token_hash,
+            PasswordResetToken.used_at.is_(None),
+            PasswordResetToken.expires_at > now,
+        )
+    )
+    if not reset_token:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired reset token")
+    return reset_token
+
+
+def complete_password_reset(db: Session, token: str, new_password: str) -> User:
+    reset_token = verify_password_reset_token(db, token)
+    user = db.get(User, reset_token.user_id)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired reset token")
+
+    user.password_hash = get_password_hash(new_password)
+    user.must_change_password = False
+    reset_token.used_at = datetime.now(UTC)
+    db.add(user)
+    db.add(reset_token)
+    db.flush()
+    db.execute(delete(PasswordResetToken).where(PasswordResetToken.id == reset_token.id))
     db.commit()
     db.refresh(user)
     return user

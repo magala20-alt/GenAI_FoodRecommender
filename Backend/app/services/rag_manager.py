@@ -3,7 +3,10 @@ RAG Manager - Orchestrates the complete RAG pipeline.
 Handles retrieval, augmentation, and generation workflow.
 """
 
+import json
 from typing import List, Dict, Any, Optional
+import importlib.util
+from pathlib import Path
 from sqlalchemy.orm import Session
 
 from app.services.embedding_service import EmbeddingService
@@ -140,11 +143,33 @@ class RAGManager:
             recent_trends=recent_trends
         )
         
-        # Step 3: Call LLM
+        # Step 3: Ask for strict JSON so downstream routes can persist consistent fields.
+        messages.append(
+            {
+                "role": "user",
+                "content": (
+                    "Return strict JSON only with keys: summary (string), actions (array of max 4 short strings). "
+                    "Do not include markdown or extra keys."
+                ),
+            }
+        )
+
+        # Step 4: Call LLM
         response = self.llm_client.call(messages)
-        
+        parsed = self._extract_json_object(response)
+
+        summary = str(parsed.get("summary") or "").strip()
+        actions_raw = parsed.get("actions")
+        actions = [str(item).strip() for item in actions_raw] if isinstance(actions_raw, list) else []
+        actions = [item for item in actions if item][:4]
+
+        if not summary:
+            summary = str(response or "").strip() or "No AI summary available for this patient."
+
         return {
             "response": response,
+            "summary": summary,
+            "actions": actions,
             "patient_id": patient_id,
             "meal_context_size": len(meal_history)
         }
@@ -176,14 +201,55 @@ class RAGManager:
             available_patients=available_patients
         )
         
-        # Step 3: Call LLM
+        # Step 3: Force JSON output for deterministic filtering behavior.
+        messages.append(
+            {
+                "role": "user",
+                "content": (
+                    "Return strict JSON only with keys: filters_applied (array of strings), "
+                    "matching_patient_ids (array of patient IDs), reasoning (string). "
+                    "Do not include markdown or any other keys."
+                ),
+            }
+        )
+
+        # Step 4: Call LLM
         response = self.llm_client.call(messages)
-        
+        parsed = self._extract_json_object(response)
+        filters_applied_raw = parsed.get("filters_applied")
+        matching_ids_raw = parsed.get("matching_patient_ids")
+
+        filters_applied = [str(item).strip() for item in filters_applied_raw] if isinstance(filters_applied_raw, list) else []
+        filters_applied = [item for item in filters_applied if item]
+
+        matching_patient_ids = [str(item).strip() for item in matching_ids_raw] if isinstance(matching_ids_raw, list) else []
+        matching_patient_ids = [item for item in matching_patient_ids if item]
+
         return {
             "response": response,
+            "filters_applied": filters_applied,
+            "matching_patient_ids": matching_patient_ids,
+            "reasoning": str(parsed.get("reasoning") or "").strip(),
             "query": clinician_query,
             "patients_searched": len(available_patients)
         }
+
+    def _extract_json_object(self, raw_text: str) -> Dict[str, Any]:
+        if not raw_text:
+            return {}
+        try:
+            parsed = json.loads(raw_text)
+            return parsed if isinstance(parsed, dict) else {}
+        except json.JSONDecodeError:
+            start = raw_text.find("{")
+            end = raw_text.rfind("}")
+            if start == -1 or end == -1 or end <= start:
+                return {}
+            try:
+                parsed = json.loads(raw_text[start : end + 1])
+                return parsed if isinstance(parsed, dict) else {}
+            except json.JSONDecodeError:
+                return {}
     
     def generate_meal_embeddings_batch(
         self,
@@ -262,11 +328,20 @@ class RAGManager:
             List of example dicts with 'user' and 'assistant' keys
         """
         try:
-            # Try to load examples from the prompts module
-            from app.prompts.meals.examples import DIABETES_FRIENDLY_EXAMPLES
-            return DIABETES_FRIENDLY_EXAMPLES if DIABETES_FRIENDLY_EXAMPLES else []
-        except (ImportError, AttributeError):
-            # Return empty list if examples not available
+            examples_path = Path(__file__).resolve().parents[2] / "prompts" / "meals" / "examples.py"
+            if not examples_path.exists():
+                return []
+
+            spec = importlib.util.spec_from_file_location("meal_examples", examples_path)
+            if spec is None or spec.loader is None:
+                return []
+
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            examples = getattr(module, "DIABETES_FRIENDLY_EXAMPLES", [])
+            return examples if isinstance(examples, list) else []
+        except Exception:
+            # Return empty list if examples are unavailable or malformed.
             return []
 
 

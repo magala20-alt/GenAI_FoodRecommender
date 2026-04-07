@@ -71,3 +71,13 @@ Return JSON:
   "original_query": "{query}"
 }}
 """
+
+# Structured output format for clinician summaries
+CLINICIAN_SUMMARY_FORMAT = """
+Return a concise summary for clinicians:
+1. Key eating patterns (e.g., "High sugar intake in evenings")
+2. Potential risks (e.g., "Risk of blood sugar spikes")
+3. Trends (e.g., "Increasing calorie intake over 2 weeks")
+4. Actionable recommendations (e.g., "Scheduling a meeting with patient", "Changing medication", "Suggesting dietary changes")
+Use professional language and be concise. Do NOT provide medical advice or diagnoses.
+"""

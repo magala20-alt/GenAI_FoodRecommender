@@ -10,6 +10,24 @@ export interface ClinicianPatientListItem {
   riskLevel: 'High' | 'Medium' | 'Low' | null
   adherence: number | null
   alerts: string | null
+  alertsCount: number
+}
+
+export interface AIPatientFilterResult {
+  query: string
+  filtersApplied: string[]
+  reasoning: string
+  matchingPatientIds: string[]
+  matchedPatients: Array<{
+    id: string
+    firstName: string
+    lastName: string
+    email: string
+    riskLevel: 'High' | 'Medium' | 'Low' | null
+    adherence: number | null
+    alertsCount: number
+  }>
+  patientsSearched: number
 }
 
 // this links used to link to the database schema
@@ -21,8 +39,13 @@ export interface ClinicianPatientProfile {
   age: number | null
   gender: string | null
   riskLevel: 'High' | 'Medium' | 'Low' | null
+  riskScore: number | null
   adherence: number | null
   alerts: string | null
+  mealsLogged: number | null
+  streak: number | null
+  sessions7d: number | null
+  missedAppointments: number | null
   onboardedDate: string | null
   calorieTarget: number | null
   primaryGoal: string | null
@@ -30,9 +53,12 @@ export interface ClinicianPatientProfile {
   country: string | null
   weightKg: number | null
   heightCm: number | null
+  targetWeightKg: number | null
   bpSystolic: number | null
   bpDiastolic: number | null
   heartRate: number | null
+  bmi: number | null
+  glucose: number | null
   cholesterolTotal: number | null
   hdlCholesterol: number | null
   ldlCholesterol: number | null
@@ -44,6 +70,168 @@ export interface ClinicianPatientProfile {
   cuisinePreferences: string[]
   dietaryRestrictions: string[]
   prescribedMedications: string[]
+  dailySteps: number | null
+  targetHba1c: number | null
+}
+
+export interface CarePlanUpdatePayload {
+  prescribedMedications?: string[]
+  dietaryRestrictions?: string[]
+  cuisinePreferences?: string[]
+  calorieTarget?: number | null
+  targetWeightKg?: number | null
+  dailySteps?: number | null
+  targetHba1c?: number | null
+}
+
+export interface InterventionMessageResponse {
+  status: string
+  detail: string
+}
+
+export interface PatientAlert {
+  id: string
+  patientId: string
+  patientName: string
+  alertType: string
+  severity: 'High' | 'Medium' | 'Low' | string
+  message: string
+  llmReason: string | null
+  riskScoreSnapshot: number | null
+  status: 'Open' | 'Dismissed' | string
+  createdAt: string
+}
+
+export interface AlertsSummary {
+  openCount: number
+  highCount: number
+  mediumCount: number
+  lowCount: number
+}
+
+export interface ScheduleMeeting {
+  id: string
+  time: string
+  period: 'AM' | 'PM' | string
+  title: string
+  detail: string
+  borderTone: 'high' | 'medium' | 'low' | string
+  badgeLabel: string | null
+  badgeTone: 'now' | 'soon' | 'neutral' | string | null
+}
+
+export interface ScheduleTodo {
+  id: string
+  label: string
+  done: boolean
+  badgeLabel: string | null
+  badgeTone: 'urgent' | 'today' | string | null
+}
+
+export interface ScheduleAppointmentRead {
+  id: string
+  patientId: string
+  patientName: string
+  scheduledAt: string
+  title: string
+  detail: string
+  period: 'AM' | 'PM' | string
+  dateLabel: string
+}
+
+export interface PatientAISummary {
+  id: string
+  patientId: string
+  patientName: string
+  clinicianId: string
+  riskScore: number | null
+  riskLevel: 'High' | 'Medium' | 'Low'
+  generatedAt: string
+  summaryText: string
+  suggestedActions: string[]
+}
+
+export interface AISummariesRegenerateResponse {
+  generatedCount: number
+}
+
+export interface ScheduleTodayResponse {
+  dateLabel: string
+  meetings: ScheduleMeeting[]
+  todos: ScheduleTodo[]
+}
+
+export interface ScheduleAppointmentCreatePayload {
+  patientId: string
+  scheduledAt: string
+  title: string
+  detail?: string
+}
+
+export interface ScheduleTaskCreatePayload {
+  description: string
+  taskType?: string
+  clinicianId?: string
+}
+
+export interface PatientMealLogItem {
+  id: string
+  mealName: string | null
+  mealType: string | null
+  cuisine: string | null
+  calories: number | null
+  budget: string | null
+  loggedAt: string | null
+  method: string | null
+}
+
+export interface PatientMealsSummary {
+  consumedKcalToday: number | null
+  calorieTarget: number | null
+  remainingKcalToday: number | null
+  mealsLogged: number
+}
+
+export interface PatientMealsResponse {
+  summary: PatientMealsSummary
+  logs: PatientMealLogItem[]
+}
+
+export interface PatientHealthReading {
+  timestamp: string
+  bmi: number | null
+  systolicBp: number | null
+  diastolicBp: number | null
+  heartRate: number | null
+  glucose: number | null
+  cholesterolTotal: number | null
+  hdlCholesterol: number | null
+  ldlCholesterol: number | null
+  triglycerides: number | null
+}
+
+export interface BloodWorkEntryPayload {
+  timestamp?: string
+  cholesterolTotal?: number | null
+  hdlCholesterol?: number | null
+  ldlCholesterol?: number | null
+  triglycerides?: number | null
+  glucose?: number | null
+}
+
+export interface BloodWorkSnapshotPayload {
+  extractedText?: string
+  imageDataUrl?: string
+  fileName?: string
+}
+
+export interface BloodWorkSnapshotResponse {
+  cholesterolTotal: number | null
+  hdlCholesterol: number | null
+  ldlCholesterol: number | null
+  triglycerides: number | null
+  glucose: number | null
+  notes: string | null
 }
 
 // Mock data
@@ -143,8 +331,72 @@ export const patientService = {
     return apiClient.get<ClinicianPatientListItem[]>('/patients')
   },
 
+  async filterPatientsWithAI(query: string): Promise<AIPatientFilterResult> {
+    return apiClient.post<AIPatientFilterResult>('/patient-rag/clinician/filter-patients', { query })
+  },
+
   async getPatientProfileForClinician(patientId: string): Promise<ClinicianPatientProfile> {
     return apiClient.get<ClinicianPatientProfile>(`/patients/${patientId}`)
+  },
+
+  async getPatientHealthReadings(patientId: string, days = 60): Promise<PatientHealthReading[]> {
+    return apiClient.get<PatientHealthReading[]>(`/patients/${patientId}/health-readings?days=${days}`)
+  },
+
+  async addPatientHealthReading(patientId: string, payload: BloodWorkEntryPayload): Promise<PatientHealthReading> {
+    return apiClient.post<PatientHealthReading>(`/patients/${patientId}/health-readings`, payload)
+  },
+
+  async extractBloodworkSnapshot(
+    patientId: string,
+    payload: BloodWorkSnapshotPayload,
+  ): Promise<BloodWorkSnapshotResponse> {
+    return apiClient.post<BloodWorkSnapshotResponse>(`/patients/${patientId}/health-readings/extract-snapshot`, payload)
+  },
+
+  async getPatientMeals(patientId: string): Promise<PatientMealsResponse> {
+    return apiClient.get<PatientMealsResponse>(`/patients/${patientId}/meals`)
+  },
+
+  async updatePatientCarePlan(patientId: string, payload: CarePlanUpdatePayload): Promise<ClinicianPatientProfile> {
+    return apiClient.put<ClinicianPatientProfile>(`/patients/${patientId}/care-plan`, payload)
+  },
+
+  async sendInterventionMessage(patientId: string, message: string): Promise<InterventionMessageResponse> {
+    return apiClient.post<InterventionMessageResponse>(`/patients/${patientId}/intervention-message`, { message })
+  },
+
+  async getPatientAlerts(patientId: string): Promise<PatientAlert[]> {
+    return apiClient.get<PatientAlert[]>(`/patients/alerts/patient/${patientId}`)
+  },
+
+  async getAlerts(patientId?: string): Promise<PatientAlert[]> {
+    const query = patientId ? `?patient_id=${encodeURIComponent(patientId)}` : ''
+    return apiClient.get<PatientAlert[]>(`/patients/alerts/all${query}`)
+  },
+
+  async getAlertsSummary(): Promise<AlertsSummary> {
+    return apiClient.get<AlertsSummary>(`/patients/alerts/summary`)
+  },
+
+  async dismissAlert(alertId: number | string): Promise<PatientAlert> {
+    return apiClient.post<PatientAlert>(`/patients/alerts/${alertId}/dismiss`)
+  },
+
+  async getScheduleToday(): Promise<ScheduleTodayResponse> {
+    return apiClient.get<ScheduleTodayResponse>(`/patients/schedule/today`)
+  },
+
+  async getScheduleAppointments(): Promise<ScheduleAppointmentRead[]> {
+    return apiClient.get<ScheduleAppointmentRead[]>(`/patients/schedule/appointments`)
+  },
+
+  async createScheduleAppointment(payload: ScheduleAppointmentCreatePayload): Promise<ScheduleMeeting> {
+    return apiClient.post<ScheduleMeeting>('/patients/schedule/appointments', payload)
+  },
+
+  async createScheduleTask(payload: ScheduleTaskCreatePayload): Promise<ScheduleTodo> {
+    return apiClient.post<ScheduleTodo>('/patients/schedule/tasks', payload)
   },
 
   async getPatients(): Promise<Patient[]> {
@@ -269,6 +521,26 @@ export const patientService = {
 
     try {
       return await apiClient.get<AISummary>(`/patients/${patientId}/ai-summary`)
+    } catch (error) {
+      throw error
+    }
+  },
+
+  async getAISummaries(): Promise<PatientAISummary[]> {
+    return apiClient.get<PatientAISummary[]>(`/patients/ai-summaries`)
+  },
+
+  async regenerateAISummaries(): Promise<AISummariesRegenerateResponse> {
+    return apiClient.post<AISummariesRegenerateResponse>(`/patients/ai-summaries/regenerate`)
+  },
+
+  async regeneratePatientAISummary(patientId: string): Promise<PatientAISummary> {
+    return apiClient.post<PatientAISummary>(`/patients/${patientId}/ai-summary/regenerate`)
+  },
+
+  async getPatientAISummary(patientId: string): Promise<PatientAISummary> {
+    try {
+      return await apiClient.get<PatientAISummary>(`/patients/${patientId}/ai-summary`)
     } catch (error) {
       throw error
     }

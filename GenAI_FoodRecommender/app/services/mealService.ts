@@ -2,7 +2,7 @@ import { MealPlan, MealPreferences } from '../types'
 import { apiClient } from './apiClient'
 import { mockMealPlan } from '../mocks'
 
-const USE_MOCK = true // Set to false when backend is ready
+const USE_MOCK = false
 
 export const mealService = {
   async getTodaysMealPlan(): Promise<MealPlan> {
@@ -11,7 +11,7 @@ export const mealService = {
       return mockMealPlan
     }
 
-    return apiClient.get<MealPlan>('/meals/today')
+    return apiClient.get<MealPlan>('/patient-rag/meal-plan/today')
   },
 
   async getMealPlan(date: string): Promise<MealPlan> {
@@ -23,7 +23,7 @@ export const mealService = {
     return apiClient.get<MealPlan>(`/meals/${date}`)
   },
 
-  async regeneratePlan(preferences: MealPreferences): Promise<MealPlan> {
+  async regeneratePlan(preferences?: MealPreferences): Promise<MealPlan> {
     if (USE_MOCK) {
       await new Promise(resolve => setTimeout(resolve, 1500))
       // Simulate regenerated plan with some variation
@@ -35,7 +35,12 @@ export const mealService = {
       return newPlan
     }
 
-    return apiClient.post<MealPlan>('/meals/regenerate', { preferences })
+    const cuisines = (preferences?.cuisines || []).join(', ')
+    const restrictions = (preferences?.restrictions || []).join(', ')
+    const query = `Create a ${preferences?.budget || 'medium'} budget meal plan ${cuisines ? `with ${cuisines} cuisine` : ''} ${restrictions ? `and restrictions: ${restrictions}` : ''}`.trim()
+
+    const encoded = encodeURIComponent(query)
+    return apiClient.get<MealPlan>(`/patient-rag/meal-plan/today?query=${encoded}`)
   },
 
   async updateMealPreferences(preferences: MealPreferences): Promise<void> {
@@ -57,7 +62,13 @@ export const mealService = {
       }
     }
 
-    return apiClient.get<MealPreferences>('/meals/preferences')
+    return {
+      cuisines: ['Mediterranean', 'American'],
+      budget: 'medium',
+      allergies: [],
+      restrictions: [],
+      diabetesFriendly: true,
+    }
   },
 
   async rateMeal(mealId: string, rating: number): Promise<void> {
