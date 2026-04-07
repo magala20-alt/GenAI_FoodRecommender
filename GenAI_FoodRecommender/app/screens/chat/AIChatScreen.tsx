@@ -10,11 +10,11 @@ import {
   ActivityIndicator,
   ScrollView,
 } from 'react-native'
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useChat } from '../../hooks'
-import { MessageBubble, FilterChipGroup, FilterChip } from '../../components/molecules'
+import { MessageBubble, FilterChip } from '../../components/molecules'
 import { Button } from '../../components/atoms'
 import { Colors, Typography, Spacing, BorderRadius } from '../../constants/theme'
-import { getGreeting } from '../../utils'
 
 export function AIChatScreen() {
   const {
@@ -30,7 +30,7 @@ export function AIChatScreen() {
   const [newMessage, setNewMessage] = useState('')
   const [suggestedPrompts, setSuggestedPrompts] = useState<string[]>([])
   const flatListRef = useRef<FlatList>(null)
-  const scrollViewRef = useRef<ScrollView>(null)
+  const insets = useSafeAreaInsets()
 
   // Load suggested prompts on mount
   useEffect(() => {
@@ -86,156 +86,163 @@ export function AIChatScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 100}
-    >
-      {/* Header */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.headerTitle}>AI Assistant 🤖</Text>
-          <Text style={styles.headerSubtitle}>
-            Get personalized meal recommendations & health tips
-          </Text>
-        </View>
-        <Button
-          label="Clear"
-          onPress={handleClearChat}
-          variant="outline"
-          size="small"
-        />
-      </View>
-
-      {/* Error State */}
-      {error && (
-        <View style={styles.errorBanner}>
-          <Text style={styles.errorText}>{error}</Text>
-        </View>
-      )}
-
-      {/* Messages List */}
-      {messages.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyStateTitle}>Welcome! 👋</Text>
-          <Text style={styles.emptyStateSubtitle}>
-            I'm your AI nutritionist assistant. Ask me anything about your meal plan,
-            nutrition, or diabetes management.
-          </Text>
-
-          {/* Suggested Prompts */}
-          {suggestedPrompts.length > 0 && (
-            <View style={styles.suggestedSection}>
-              <Text style={styles.suggestedTitle}>Quick Suggestions</Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.suggestedList}
-              >
-                {suggestedPrompts.map((prompt, index) => (
-                  <FilterChip
-                    key={index}
-                    label={prompt}
-                    selected={false}
-                    onPress={() => handleSuggestedPrompt(prompt)}
-                  />
-                ))}
-              </ScrollView>
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 6 : 100}
+      >
+        {/* Header */}
+        <View style={[styles.headerCard, { paddingTop: Math.max(insets.top * 0.15, Spacing.sm) }]}>
+          <View style={styles.header}>
+            <View style={{ flex: 1, paddingRight: Spacing.sm }}>
+              <Text style={styles.headerTitle}>AI Assistant 🤖</Text>
+              <Text style={styles.headerSubtitle}>
+                Get personalized meal recommendations and health tips.
+              </Text>
             </View>
-          )}
-        </View>
-      ) : (
-        <FlatList
-          ref={flatListRef}
-          data={messages}
-          keyExtractor={(item, index) => `${item.id}-${index}`}
-          renderItem={({ item }) => (
-            <MessageBubble
-              message={item.content}
-              role={item.role}
-              timestamp={item.timestamp}
+            <Button
+              label="Clear"
+              onPress={handleClearChat}
+              variant="outline"
+              size="small"
             />
-          )}
-          contentContainerStyle={styles.messagesList}
-          bounces={false}
-          scrollEventThrottle={16}
-          ListFooterComponent={
-            isStreaming ? (
-              <View style={styles.typingIndicator}>
-                <ActivityIndicator color={Colors.primary} size="small" />
-                <Text style={styles.typingText}>AI is thinking...</Text>
+          </View>
+        </View>
+
+        {/* Error State */}
+        {error && (
+          <View style={styles.errorBanner}>
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+        )}
+
+        {/* Messages List */}
+        {messages.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyStateTitle}>Welcome! 👋</Text>
+            <Text style={styles.emptyStateSubtitle}>
+              I am your AI nutritionist assistant. Ask about your meal plan,
+              nutrition, or diabetes management.
+            </Text>
+
+            {/* Suggested Prompts */}
+            {suggestedPrompts.length > 0 && (
+              <View style={styles.suggestedSection}>
+                <Text style={styles.suggestedTitle}>Quick Suggestions</Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.suggestedList}
+                >
+                  {suggestedPrompts.map((prompt, index) => (
+                    <FilterChip
+                      key={index}
+                      label={prompt}
+                      selected={false}
+                      onPress={() => handleSuggestedPrompt(prompt)}
+                    />
+                  ))}
+                </ScrollView>
               </View>
-            ) : null
-          }
-        />
-      )}
-
-      {/* Suggested Prompts (when messages exist and not empty) */}
-      {messages.length > 0 && messages[messages.length - 1]?.role === 'assistant' && !isStreaming && (
-        <View style={styles.suggestedSection}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.suggestedList}
-          >
-            {suggestedPrompts.slice(0, 3).map((prompt, index) => (
-              <FilterChip
-                key={index}
-                label={prompt}
-                selected={false}
-                onPress={() => handleSuggestedPrompt(prompt)}
+            )}
+          </View>
+        ) : (
+          <FlatList
+            ref={flatListRef}
+            data={messages}
+            keyExtractor={(item, index) => `${item.id}-${index}`}
+            renderItem={({ item }) => (
+              <MessageBubble
+                message={item.content}
+                role={item.role}
+                timestamp={item.timestamp}
               />
-            ))}
-          </ScrollView>
-        </View>
-      )}
+            )}
+            contentContainerStyle={styles.messagesList}
+            bounces={false}
+            scrollEventThrottle={16}
+            ListFooterComponent={
+              isStreaming ? (
+                <View style={styles.typingIndicator}>
+                  <ActivityIndicator color={Colors.primary} size="small" />
+                  <Text style={styles.typingText}>AI is thinking...</Text>
+                </View>
+              ) : null
+            }
+          />
+        )}
 
-      {/* Input Area */}
-      <View style={styles.inputContainer}>
-        <View style={styles.inputWrapper}>
-          <RNTextInput
-            style={styles.input}
-            placeholder="Ask me anything..."
-            placeholderTextColor={Colors.text.tertiary}
-            value={newMessage}
-            onChangeText={setNewMessage}
-            editable={!isLoading && !isStreaming}
-            multiline
-            maxLength={500}
-            scrollEnabled
-          />
-          <Button
-            label={isStreaming ? '⏳' : '📤'}
-            onPress={handleSendMessage}
-            disabled={!newMessage.trim() || isLoading || isStreaming}
-            variant={newMessage.trim() ? 'primary' : 'outline'}
-            size="small"
-            style={styles.sendButton}
-          />
+        {/* Suggested Prompts (when messages exist and not empty) */}
+        {messages.length > 0 && messages[messages.length - 1]?.role === 'assistant' && !isStreaming && (
+          <View style={styles.suggestedSection}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.suggestedList}
+            >
+              {suggestedPrompts.slice(0, 3).map((prompt, index) => (
+                <FilterChip
+                  key={index}
+                  label={prompt}
+                  selected={false}
+                  onPress={() => handleSuggestedPrompt(prompt)}
+                />
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* Input Area */}
+        <View style={[styles.inputContainer, { paddingBottom: Math.max(insets.bottom, Spacing.md) }]}>
+          <View style={styles.inputWrapper}>
+            <RNTextInput
+              style={styles.input}
+              placeholder="Ask me anything..."
+              placeholderTextColor={Colors.text.tertiary}
+              value={newMessage}
+              onChangeText={setNewMessage}
+              editable={!isLoading && !isStreaming}
+              multiline
+              maxLength={500}
+              scrollEnabled
+            />
+            <Button
+              label={isStreaming ? '⏳' : '📤'}
+              onPress={handleSendMessage}
+              disabled={!newMessage.trim() || isLoading || isStreaming}
+              variant={newMessage.trim() ? 'primary' : 'outline'}
+              size="small"
+              style={styles.sendButton}
+            />
+          </View>
+          <Text style={styles.characterCount}>
+            {newMessage.length} / 500
+          </Text>
         </View>
-        <Text style={styles.characterCount}>
-          {newMessage.length} / 500
-        </Text>
-      </View>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   )
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.warmWhite,
   },
-  header: {
-    backgroundColor: Colors.surface,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.lg,
-    paddingTop: Spacing.xl,
+  headerCard: {
+    backgroundColor: Colors.white,
     borderBottomWidth: 1,
     borderBottomColor: Colors.divider,
+    borderBottomLeftRadius: BorderRadius.xxl,
+    borderBottomRightRadius: BorderRadius.xxl,
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.md,
+  },
+  header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
   },
   headerTitle: {
     fontSize: Typography.sizes.h3,
@@ -249,21 +256,24 @@ const styles = StyleSheet.create({
     maxWidth: '90%',
   },
   errorBanner: {
-    backgroundColor: Colors.error,
+    backgroundColor: Colors.dangerTint,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     margin: Spacing.md,
     borderRadius: BorderRadius.md,
+    borderLeftWidth: 4,
+    borderLeftColor: Colors.danger,
   },
   errorText: {
-    color: Colors.text.inverse,
+    color: Colors.danger,
     fontSize: Typography.sizes.body,
   },
   emptyState: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     alignItems: 'center',
     paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.xl,
   },
   emptyStateTitle: {
     fontSize: Typography.sizes.h2,
@@ -281,6 +291,7 @@ const styles = StyleSheet.create({
   messagesList: {
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
+    paddingBottom: Spacing.lg,
   },
   typingIndicator: {
     flexDirection: 'row',
@@ -298,8 +309,6 @@ const styles = StyleSheet.create({
   suggestedSection: {
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: Colors.divider,
   },
   suggestedTitle: {
     fontSize: Typography.sizes.body,
@@ -312,12 +321,11 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   inputContainer: {
-    backgroundColor: Colors.surface,
+    backgroundColor: Colors.white,
     borderTopWidth: 1,
     borderTopColor: Colors.divider,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
-    paddingBottom: Platform.OS === 'ios' ? Spacing.lg : Spacing.md,
   },
   inputWrapper: {
     flexDirection: 'row',

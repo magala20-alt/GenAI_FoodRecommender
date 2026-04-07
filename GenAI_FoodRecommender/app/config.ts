@@ -33,7 +33,44 @@ const API_FALLBACK = EXPO_HOST
 
 export const API_BASE_URL = API_FROM_ENV || API_FROM_HOST_PORT || API_FALLBACK
 
+function withApiPath(url: string): string {
+  return url.endsWith('/api') ? url : `${url}/api`
+}
+
+function normalizeApiUrl(url?: string | null): string | null {
+  if (!url) return null
+  const trimmed = url.trim().replace(/\/+$/, '')
+  if (!trimmed) return null
+  return withApiPath(trimmed)
+}
+
+function buildApiBaseUrlCandidates(): string[] {
+  const candidates = [
+    API_FROM_ENV,
+    API_FROM_HOST_PORT,
+    EXPO_HOST ? `http://${EXPO_HOST}:8000/api` : null,
+    'http://10.0.2.2:8000/api',
+    'http://127.0.0.1:8000/api',
+    'http://localhost:8000/api',
+  ]
+
+  const seen = new Set<string>()
+  const result: string[] = []
+
+  for (const candidate of candidates) {
+    const normalized = normalizeApiUrl(candidate)
+    if (!normalized || seen.has(normalized)) continue
+    seen.add(normalized)
+    result.push(normalized)
+  }
+
+  return result
+}
+
+export const API_BASE_URL_CANDIDATES = buildApiBaseUrlCandidates()
+
 export const config = {
   apiBaseUrl: API_BASE_URL,
+  apiBaseUrlCandidates: API_BASE_URL_CANDIDATES,
 }
 

@@ -40,6 +40,25 @@ export interface MealLogItem {
   consumedAt: string
 }
 
+export interface VitalLogCreateRequest {
+  glucose?: number
+  bmi?: number
+  systolicBp?: number
+  diastolicBp?: number
+  heartRate?: number
+  timestamp?: string
+}
+
+export interface VitalLogItem {
+  id: string
+  timestamp: string
+  glucose?: number
+  bmi?: number
+  systolicBp?: number
+  diastolicBp?: number
+  heartRate?: number
+}
+
 interface MealLogCreateResponse {
   status: string
   item: MealLogItem
@@ -47,6 +66,15 @@ interface MealLogCreateResponse {
 
 interface MealLogHistoryResponse {
   items: MealLogItem[]
+}
+
+interface VitalLogCreateResponse {
+  status: string
+  item: VitalLogItem
+}
+
+interface VitalLogHistoryResponse {
+  items: VitalLogItem[]
 }
 
 export const mealLoggerService = {
@@ -60,7 +88,17 @@ export const mealLoggerService = {
   },
 
   async getHistory(): Promise<MealLogItem[]> {
-    const result = await apiClient.get<MealLogHistoryResponse>('/patient-rag/meal-log/history')
-    return result.items || []
+    const result = await apiClient.get<MealLogHistoryResponse | undefined>('/patient-rag/meal-log/history')
+    return result?.items || []
+  },
+
+  async saveVitalsLog(payload: VitalLogCreateRequest): Promise<VitalLogItem> {
+    const result = await apiClient.post<VitalLogCreateResponse>('/patient-rag/vitals-log', payload)
+    return result.item
+  },
+
+  async getVitalsHistory(): Promise<VitalLogItem[]> {
+    const result = await apiClient.get<VitalLogHistoryResponse | undefined>('/patient-rag/vitals-log/history')
+    return result?.items || []
   },
 }

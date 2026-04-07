@@ -105,6 +105,53 @@ class InterventionMessageResponse(BaseModel):
     detail: str
 
 
+class InterventionMessageRead(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: str
+    patient_id: str = Field(alias="patientId")
+    clinician_id: str | None = Field(default=None, alias="clinicianId")
+    clinician_name: str | None = Field(default=None, alias="clinicianName")
+    message: str
+    created_at: datetime = Field(alias="createdAt")
+
+
+class LatestInterventionMessageResponse(BaseModel):
+    has_message: bool = Field(alias="hasMessage")
+    message: InterventionMessageRead | None = None
+
+
+class PatientAppointmentRead(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: str
+    patient_id: str = Field(alias="patientId")
+    patient_name: str | None = Field(default=None, alias="patientName")
+    scheduled_at: datetime = Field(alias="scheduledAt")
+    title: str
+    detail: str
+    period: str
+    date_label: str = Field(alias="dateLabel")
+    reschedule_status: str | None = Field(default=None, alias="rescheduleStatus")
+    reschedule_reason: str | None = Field(default=None, alias="rescheduleReason")
+    reschedule_alert_id: str | None = Field(default=None, alias="rescheduleAlertId")
+
+
+class NextAppointmentResponse(BaseModel):
+    has_appointment: bool = Field(alias="hasAppointment")
+    appointment: PatientAppointmentRead | None = None
+
+
+class AppointmentRescheduleRequest(BaseModel):
+    reason: str
+
+
+class AppointmentRescheduleResponse(BaseModel):
+    status: str
+    detail: str
+    appointment: PatientAppointmentRead | None = None
+
+
 class PatientMealLogItem(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 

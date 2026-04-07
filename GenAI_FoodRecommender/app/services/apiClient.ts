@@ -1,8 +1,9 @@
-import { API_BASE_URL } from '../config'
+import { API_BASE_URL, API_BASE_URL_CANDIDATES } from '../config'
 
 // Base API client with axios-like interface for React Native
 export class ApiClient {
   private baseURL: string
+  private candidates: string[]
   private token: string | null = null
   private headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -10,6 +11,7 @@ export class ApiClient {
 
   constructor(baseURL: string = API_BASE_URL) {
     this.baseURL = baseURL
+    this.candidates = Array.from(new Set([baseURL, ...API_BASE_URL_CANDIDATES]))
   }
 
   setToken(token: string | null) {
@@ -18,6 +20,23 @@ export class ApiClient {
       this.headers['Authorization'] = `Bearer ${token}`
     } else {
       delete this.headers['Authorization']
+    }
+  }
+
+  private async parseResponseBody(response: Response): Promise<any> {
+    if (response.status === 204) {
+      return undefined
+    }
+
+    const rawText = await response.text()
+    if (!rawText.trim()) {
+      return undefined
+    }
+
+    try {
+      return JSON.parse(rawText)
+    } catch {
+      return rawText
     }
   }
 
@@ -44,11 +63,13 @@ export class ApiClient {
         let message = `HTTP ${response.status}`
 
         try {
-          const errorPayload = await response.json()
+          const errorPayload = await this.parseResponseBody(response)
           if (typeof errorPayload?.detail === 'string') {
             message = errorPayload.detail
           } else if (typeof errorPayload?.message === 'string') {
             message = errorPayload.message
+          } else if (typeof errorPayload === 'string' && errorPayload.trim()) {
+            message = errorPayload
           }
         } catch {
           // Ignore invalid error bodies.
@@ -60,11 +81,42 @@ export class ApiClient {
         throw new Error(message)
       }
 
-      const result = await response.json()
+      const result = await this.parseResponseBody(response)
       return result as T
     } catch (error) {
       if (error instanceof TypeError && error.message.toLowerCase().includes('network request failed')) {
         console.error(`[${method}] ${endpoint}: Network request failed. API base URL: ${this.baseURL}`)
+
+        // Recover from stale LAN IPs by trying the next known API hosts once.
+        for (const candidateBaseUrl of this.candidates) {
+          if (candidateBaseUrl === this.baseURL) continue
+
+          try {
+            const retryUrl = `${candidateBaseUrl}${endpoint}`
+            const retryOptions: RequestInit = {
+              method,
+              headers: this.headers,
+            }
+
+            if (data) {
+              retryOptions.body = JSON.stringify(data)
+            }
+
+            const retryResponse = await fetch(retryUrl, retryOptions)
+            if (!retryResponse.ok) {
+              continue
+            }
+
+            this.baseURL = candidateBaseUrl
+            this.candidates = Array.from(new Set([candidateBaseUrl, ...this.candidates]))
+            console.warn(`API base URL switched to ${candidateBaseUrl}`)
+
+            const retryResult = await this.parseResponseBody(retryResponse)
+            return retryResult as T
+          } catch {
+            // Keep trying the next candidate on network failures.
+          }
+        }
       }
       console.error(`[${method}] ${endpoint}:`, error)
       throw error

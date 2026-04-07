@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 import json
+import logging
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -36,6 +37,10 @@ from app.schemas.patient_rag import (
     PatientMealPlanResponse,
     PatientMealRecommendationRequest,
     PatientMealRecommendationResponse,
+    PatientVitalsLogCreateRequest,
+    PatientVitalsLogCreateResponse,
+    PatientVitalsLogHistoryResponse,
+    PatientVitalsLogItem,
 )
 from app.services.llm_client import get_llm_client
 from app.services.meal_import_service import import_meals_from_csv
@@ -45,6 +50,17 @@ from app.services.vector_store import VectorStore
 
 
 router = APIRouter(prefix="/patient-rag", tags=["patient-rag"])
+logger = logging.getLogger(__name__)
+
+
+DEFAULT_CHAT_PROMPTS = [
+    "Suggest a diabetes-friendly breakfast",
+    "What can I eat for a low-carb lunch?",
+    "Show me high-protein meal ideas",
+    "Recommend meals under 500 calories",
+    "Create a weekly meal plan for me",
+    "What foods should I avoid today?",
+]
 
 
 def _resolve_csv_path(csv_path: str) -> Path:
@@ -162,6 +178,7 @@ def _risk_level_from_score(risk_score: float | None) -> str | None:
     return "Low"
 
 
+
 def _clinician_scope_patient_ids(db: Session, current_user: User) -> list[str]:
     if current_user.role == UserRole.ADMIN:
         return db.scalars(select(User.id).where(User.role == UserRole.PATIENT)).all()
@@ -248,20 +265,35 @@ def patient_recommend_meals(
     }
     preferences = {k: v for k, v in preferences.items() if v}
 
-    rag = get_rag_manager(db)
-    result = rag.recommend_meals(
-        user_query=payload.query,
-        user_preferences=preferences,
-        include_examples=payload.include_examples,
-        include_all_meals=False,
-        k_retrieved=payload.k_retrieved,
-    )
+    result: dict[str, object]
+    try:
+        rag = get_rag_manager(db)
+        result = rag.recommend_meals(
+            user_query=payload.query,
+            user_preferences=preferences,
+            include_examples=payload.include_examples,
+            include_all_meals=False,
+            k_retrieved=payload.k_retrieved,
+        )
+    except Exception as exc:
+        logger.exception("Meal recommendation RAG failed; falling back to text search", exc_info=exc)
+        result = {
+            "response": "I could not generate a full AI recommendation right now, so here are the closest matching meals from the menu.",
+            "retrieved_meals": [],
+            "sources": [],
+            "num_meals_retrieved": 0,
+        }
 
     if not result.get("retrieved_meals"):
         fallback = VectorStore.search_meals_by_text(db=db, query_text=payload.query, limit=payload.k_retrieved)
+        if not fallback:
+            fallback = VectorStore.get_all_meals_for_context(db=db, limit=payload.k_retrieved)
         result["retrieved_meals"] = fallback
         result["sources"] = [meal.get("name", "Unknown") for meal in fallback]
         result["num_meals_retrieved"] = len(fallback)
+
+    if not str(result.get("response") or "").strip():
+        result["response"] = "Here are some meals that fit your request based on the current menu."
 
     return PatientMealRecommendationResponse(
         response=result["response"],
@@ -269,6 +301,11 @@ def patient_recommend_meals(
         sources=result.get("sources", []),
         numMealsRetrieved=result.get("num_meals_retrieved", 0),
     )
+
+
+@router.get("/chat/suggestions", response_model=list[str])
+def patient_chat_suggestions() -> list[str]:
+    return DEFAULT_CHAT_PROMPTS
 
 
 @router.post("/meal-log/extract", response_model=MealSnapshotExtractResponse)
@@ -290,13 +327,8 @@ def patient_extract_meal_snapshot(
     llm_raw = ""
     if payload.image_data_url:
         try:
-            import openai
-
-            from app.core.config import settings
-
-            client = openai.OpenAI(api_key=settings.llm_api_key)
-            response = client.chat.completions.create(
-                model=settings.llm_model,
+            llm_client = get_llm_client()
+            response = llm_client.call(
                 messages=[
                     {
                         "role": "user",
@@ -306,11 +338,9 @@ def patient_extract_meal_snapshot(
                             {"type": "image_url", "image_url": {"url": payload.image_data_url}},
                         ],
                     }
-                ],
-                temperature=0,
-                max_tokens=700,
+                ]
             )
-            llm_raw = response.choices[0].message.content or ""
+            llm_raw = response or ""
         except Exception:
             llm_raw = ""
 
@@ -359,6 +389,7 @@ def patient_create_meal_log(
     log = MealHistory(
         user_id=current_user.id,
         meal_id=_find_matching_meal_id(db, payload.meal_name),
+        meal_name=payload.meal_name,
         calories=payload.calories,
         consumed_at=consumed_at,
     )
@@ -368,13 +399,13 @@ def patient_create_meal_log(
 
     item = PatientMealLogItem(
         id=log.id,
-        mealName=payload.meal_name,
+        meal_name=payload.meal_name,
         calories=payload.calories,
-        mealType=_normalize_meal_type(payload.meal_type),
+        meal_type=_normalize_meal_type(payload.meal_type),
         source=payload.source,
         confidence=payload.confidence,
         notes=payload.notes,
-        consumedAt=log.consumed_at.isoformat(),
+        consumed_at=log.consumed_at.isoformat(),
     )
     return PatientMealLogCreateResponse(status="saved", item=item)
 
@@ -399,17 +430,85 @@ def patient_meal_log_history(
         items.append(
             PatientMealLogItem(
                 id=history.id,
-                mealName=(meal.name if meal and meal.name else "Logged meal"),
+                meal_name=(history.meal_name or (meal.name if meal and meal.name else "Logged meal")),
                 calories=calories,
-                mealType=meal_type,
+                meal_type=meal_type,
                 source="history",
                 confidence=None,
                 notes=None,
-                consumedAt=history.consumed_at.isoformat(),
+                consumed_at=history.consumed_at.isoformat(),
             )
         )
 
     return PatientMealLogHistoryResponse(items=items)
+
+
+@router.post("/vitals-log", response_model=PatientVitalsLogCreateResponse)
+def patient_create_vitals_log(
+    payload: PatientVitalsLogCreateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_patient),
+) -> PatientVitalsLogCreateResponse:
+    timestamp = datetime.now(UTC)
+    if payload.timestamp:
+        try:
+            timestamp = datetime.fromisoformat(payload.timestamp.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid timestamp format") from exc
+
+    row = UserHealthReadings(
+        user_id=current_user.id,
+        timestamp=timestamp,
+        glucose=payload.glucose,
+        bmi=payload.bmi,
+        systolic_bp=payload.systolic_bp,
+        diastolic_bp=payload.diastolic_bp,
+        heart_rate=payload.heart_rate,
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+
+    return PatientVitalsLogCreateResponse(
+        status="saved",
+        item=PatientVitalsLogItem(
+            id=row.id,
+            timestamp=row.timestamp.isoformat(),
+            glucose=row.glucose,
+            bmi=row.bmi,
+            systolicBp=row.systolic_bp,
+            diastolicBp=row.diastolic_bp,
+            heartRate=row.heart_rate,
+        ),
+    )
+
+
+@router.get("/vitals-log/history", response_model=PatientVitalsLogHistoryResponse)
+def patient_vitals_log_history(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_patient),
+) -> PatientVitalsLogHistoryResponse:
+    rows = db.scalars(
+        select(UserHealthReadings)
+        .where(UserHealthReadings.user_id == current_user.id)
+        .order_by(UserHealthReadings.timestamp.desc())
+        .limit(30)
+    ).all()
+
+    return PatientVitalsLogHistoryResponse(
+        items=[
+            PatientVitalsLogItem(
+                id=row.id,
+                timestamp=row.timestamp.isoformat(),
+                glucose=row.glucose,
+                bmi=row.bmi,
+                systolicBp=row.systolic_bp,
+                diastolicBp=row.diastolic_bp,
+                heartRate=row.heart_rate,
+            )
+            for row in rows
+        ]
+    )
 
 
 @router.get("/meal-plan/today", response_model=PatientMealPlanResponse)
@@ -421,18 +520,24 @@ def patient_today_meal_plan(
     # Simple deterministic daily query seeded by the date for consistent UX.
     effective_query = (query or "balanced diabetic-friendly meals for today").strip()
 
-    rag = get_rag_manager(db)
-    result = rag.recommend_meals(
-        user_query=effective_query,
-        user_preferences={},
-        include_examples=True,
-        include_all_meals=False,
-        k_retrieved=4,
-    )
+    retrieved: list[dict] = []
+    try:
+        rag = get_rag_manager(db)
+        result = rag.recommend_meals(
+            user_query=effective_query,
+            user_preferences={},
+            include_examples=True,
+            include_all_meals=False,
+            k_retrieved=4,
+        )
+        retrieved = result.get("retrieved_meals", [])
+    except Exception as exc:
+        logger.exception("Meal plan RAG generation failed; falling back to text search", exc_info=exc)
 
-    retrieved = result.get("retrieved_meals", [])
     if not retrieved:
         retrieved = VectorStore.search_meals_by_text(db=db, query_text=effective_query, limit=4)
+    if not retrieved:
+        retrieved = VectorStore.get_all_meals_for_context(db=db, limit=4)
 
     meals: list[MealPlanMeal] = []
     for idx, meal in enumerate(retrieved[:4]):
@@ -545,8 +650,17 @@ def clinician_filter_patients(
             alertsCount=int(alerts_count),
         )
 
-    rag = get_rag_manager(db)
-    rag_result = rag.filter_patients(clinician_query=payload.query, available_patients=available_patients)
+    rag_result: dict[str, object]
+    try:
+        rag = get_rag_manager(db)
+        rag_result = rag.filter_patients(clinician_query=payload.query, available_patients=available_patients)
+    except Exception as exc:
+        # Keep clinician workflow available even when embedding model download/init fails.
+        rag_result = {
+            "matching_patient_ids": [],
+            "filters_applied": ["fallback"],
+            "reasoning": f"RAG temporarily unavailable ({exc.__class__.__name__}). Used fallback filtering.",
+        }
 
     matching_ids = [pid for pid in rag_result.get("matching_patient_ids", []) if pid in patient_lookup]
     if not matching_ids:

@@ -94,6 +94,6 @@ export const chatService = {
       ]
     }
 
-    return apiClient.get<string[]>('/chat/suggestions')
+    return apiClient.get<string[]>('/patient-rag/chat/suggestions')
   },
 }

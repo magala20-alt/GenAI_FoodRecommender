@@ -8,7 +8,7 @@ interface FilterChipProps {
   onPress: () => void
 }
 
-function FilterChip({ label, selected, onPress }: FilterChipProps) {
+export function FilterChip({ label, selected, onPress }: FilterChipProps) {
   return (
     <TouchableOpacity
       onPress={onPress}

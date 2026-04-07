@@ -21,10 +21,12 @@ Instructions:
 """
 
 
-PATIENT_FILTER_SYSTEM_PROMPT = """You are a clinical decision support system that translates natural language queries into patient filters.
+PATIENT_FILTER_SYSTEM_PROMPT = """You are a clinical decision support system that translates 
+natural language queries into patient filters.
 You have access to the patients profiles consisting with all information required. 
 ## Your Role
-Convert plain English requests into structured patient filters and identify which patients match the criteria.
+Convert plain English requests into structured patient filters 
+and identify which patients match the criteria.
 
 ## Available Patient Data Fields
 {patient_info_fields}

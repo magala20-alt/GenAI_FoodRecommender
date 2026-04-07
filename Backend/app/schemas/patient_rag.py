@@ -1,5 +1,6 @@
 from typing import Any
 
+from pydantic import ConfigDict
 from pydantic import BaseModel, Field
 
 
@@ -72,24 +73,28 @@ class MealSnapshotExtractResponse(BaseModel):
 
 
 class PatientMealLogCreateRequest(BaseModel):
-    meal_name: str = Field(alias="mealName", min_length=2)
+    model_config = ConfigDict(populate_by_name=True)
+
+    meal_name: str = Field(min_length=2, validation_alias="mealName")
     calories: int = Field(ge=0)
-    meal_type: str | None = Field(default=None, alias="mealType")
+    meal_type: str | None = Field(default=None, validation_alias="mealType")
     source: str | None = None
     confidence: float | None = None
     notes: str | None = None
-    consumed_at: str | None = Field(default=None, alias="consumedAt")
+    consumed_at: str | None = Field(default=None, validation_alias="consumedAt")
 
 
 class PatientMealLogItem(BaseModel):
     id: str
-    meal_name: str = Field(alias="mealName")
+    model_config = ConfigDict(populate_by_name=True)
+
+    meal_name: str = Field(serialization_alias="mealName")
     calories: int
-    meal_type: str | None = Field(default=None, alias="mealType")
+    meal_type: str | None = Field(default=None, serialization_alias="mealType")
     source: str | None = None
     confidence: float | None = None
     notes: str | None = None
-    consumed_at: str = Field(alias="consumedAt")
+    consumed_at: str = Field(serialization_alias="consumedAt")
 
 
 class PatientMealLogCreateResponse(BaseModel):
@@ -99,6 +104,34 @@ class PatientMealLogCreateResponse(BaseModel):
 
 class PatientMealLogHistoryResponse(BaseModel):
     items: list[PatientMealLogItem]
+
+
+class PatientVitalsLogCreateRequest(BaseModel):
+    glucose: float | None = None
+    bmi: float | None = None
+    systolic_bp: float | None = Field(default=None, alias="systolicBp")
+    diastolic_bp: float | None = Field(default=None, alias="diastolicBp")
+    heart_rate: float | None = Field(default=None, alias="heartRate")
+    timestamp: str | None = None
+
+
+class PatientVitalsLogItem(BaseModel):
+    id: str
+    timestamp: str
+    glucose: float | None = None
+    bmi: float | None = None
+    systolic_bp: float | None = Field(default=None, alias="systolicBp")
+    diastolic_bp: float | None = Field(default=None, alias="diastolicBp")
+    heart_rate: float | None = Field(default=None, alias="heartRate")
+
+
+class PatientVitalsLogCreateResponse(BaseModel):
+    status: str
+    item: PatientVitalsLogItem
+
+
+class PatientVitalsLogHistoryResponse(BaseModel):
+    items: list[PatientVitalsLogItem]
 
 
 class ClinicianPatientFilterRequest(BaseModel):

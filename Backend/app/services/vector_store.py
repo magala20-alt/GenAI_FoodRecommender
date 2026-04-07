@@ -24,7 +24,7 @@ class VectorStore:
     ) -> List[Dict[str, Any]]:
         """
         Find meals similar to the query embedding using vector similarity.
-        Uses pgvector's cosine distance (<->) operator.
+        Uses pgvector's cosine distance operator.
         
         Args:
             db: Database session

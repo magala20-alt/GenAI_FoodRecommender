@@ -10,6 +10,7 @@ import {
   PatientAlert,
   PatientMealsResponse,
   PatientHealthReading,
+  PatientAISummary,
   patientService,
 } from '../services/patientService'
 
@@ -90,8 +91,11 @@ export function PatientProfilePage() {
   const [healthReadings, setHealthReadings] = useState<PatientHealthReading[]>([])
   const [mealsData, setMealsData] = useState<PatientMealsResponse | null>(null)
   const [patientAlerts, setPatientAlerts] = useState<PatientAlert[]>([])
+  const [aiSummary, setAiSummary] = useState<PatientAISummary | null>(null)
   const [isAlertsLoading, setIsAlertsLoading] = useState(true)
   const [alertsError, setAlertsError] = useState<string | null>(null)
+  const [isAiSummaryLoading, setIsAiSummaryLoading] = useState(false)
+  const [aiSummaryError, setAiSummaryError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -135,6 +139,25 @@ export function PatientProfilePage() {
 
     loadPatient()
   }, [patientId])
+
+  useEffect(() => {
+    const loadAiSummary = async () => {
+      if (!patientId || activeTab !== 'ai-summary') return
+
+      setIsAiSummaryLoading(true)
+      setAiSummaryError(null)
+      try {
+        const summary = await patientService.getPatientAISummary(patientId)
+        setAiSummary(summary)
+      } catch (err) {
+        setAiSummaryError(err instanceof Error ? err.message : 'Failed to load AI summary')
+      } finally {
+        setIsAiSummaryLoading(false)
+      }
+    }
+
+    loadAiSummary()
+  }, [patientId, activeTab])
 
   const pageTitle = useMemo(() => {
     const patientName = patient ? `${patient.firstName} ${patient.lastName}` : 'Patient'
@@ -294,7 +317,23 @@ export function PatientProfilePage() {
               )}
               {activeTab === 'meals' && <MealsTab mealsData={mealsData} />}
               {activeTab === 'ai-summary' && (
-                <NullDataCard title={TAB_ITEMS.find(t => t.id === activeTab)?.label || 'Section'} />
+                <AISummaryTab
+                  summary={aiSummary}
+                  isLoading={isAiSummaryLoading}
+                  error={aiSummaryError}
+                  onRegenerate={async () => {
+                    if (!patientId) return
+                    try {
+                      setIsAiSummaryLoading(true)
+                      const updated = await patientService.regeneratePatientAISummary(patientId)
+                      setAiSummary(updated)
+                    } catch (err) {
+                      setAiSummaryError(err instanceof Error ? err.message : 'Failed to regenerate summary')
+                    } finally {
+                      setIsAiSummaryLoading(false)
+                    }
+                  }}
+                />
               )}
             </>
           )}
@@ -1172,6 +1211,109 @@ function NullDataCard({ title }: { title: string }) {
       <h3 className="text-sm font-bold text-slate-900 mb-2">{title}</h3>
       <p className="text-sm text-slate-500">Null</p>
       <p className="text-xs text-slate-400 mt-1">This section will be populated once editable clinician data is captured.</p>
+    </div>
+  )
+}
+
+function AISummaryTab({
+  summary,
+  isLoading,
+  error,
+  onRegenerate,
+}: {
+  summary: PatientAISummary | null
+  isLoading: boolean
+  error: string | null
+  onRegenerate: () => void
+}) {
+  if (isLoading) {
+    return (
+      <div className="bg-white border border-slate-200 rounded-xl p-6">
+        <p className="text-sm text-slate-500 text-center">Loading AI summary...</p>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="bg-white border border-red-200 rounded-xl p-6">
+        <p className="text-sm text-red-600 font-semibold">Error loading summary</p>
+        <p className="text-xs text-red-500 mt-1">{error}</p>
+      </div>
+    )
+  }
+
+  if (!summary) {
+    return (
+      <div className="bg-white border border-slate-200 rounded-xl p-6">
+        <p className="text-sm text-slate-500">No summary available</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-white border border-slate-200 rounded-xl p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-lg font-bold text-slate-900">AI Summary</h3>
+            <p className="text-xs text-slate-500 mt-1">
+              Generated on {new Date(summary.generatedAt).toLocaleDateString()} at{' '}
+              {new Date(summary.generatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </p>
+          </div>
+          <button
+            onClick={onRegenerate}
+            className="px-4 py-2 rounded-lg bg-teal-50 text-teal-700 font-semibold text-sm hover:bg-teal-100 transition-colors"
+          >
+            Regenerate
+          </button>
+        </div>
+
+        <div className="flex gap-3 mb-6">
+          <div className="flex-1">
+            <p className="text-xs text-slate-500 font-semibold">Risk Level</p>
+            <div
+              className={`mt-2 inline-block px-3 py-1 rounded-full text-sm font-semibold ${
+                summary.riskLevel === 'High'
+                  ? 'bg-red-50 text-red-700'
+                  : summary.riskLevel === 'Medium'
+                    ? 'bg-amber-50 text-amber-700'
+                    : 'bg-emerald-50 text-emerald-700'
+              }`}
+            >
+              {summary.riskLevel}
+            </div>
+          </div>
+          {summary.riskScore !== null && (
+            <div className="flex-1">
+              <p className="text-xs text-slate-500 font-semibold">Risk Score</p>
+              <p className="text-2xl font-bold text-slate-900 mt-1">{(summary.riskScore * 100).toFixed(0)}%</p>
+            </div>
+          )}
+        </div>
+
+        <div className="border-t border-slate-200 pt-4">
+          <h4 className="text-sm font-bold text-slate-900 mb-3">Summary</h4>
+          <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{summary.summaryText}</p>
+        </div>
+      </div>
+
+      {summary.suggestedActions && summary.suggestedActions.length > 0 && (
+        <div className="bg-white border border-slate-200 rounded-xl p-6">
+          <h4 className="text-sm font-bold text-slate-900 mb-4">Recommended Actions</h4>
+          <ul className="space-y-2">
+            {summary.suggestedActions.map((action, idx) => (
+              <li key={idx} className="flex items-start gap-3">
+                <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-teal-50 text-teal-700 text-xs font-semibold mt-0.5 shrink-0">
+                  {idx + 1}
+                </span>
+                <span className="text-sm text-slate-700">{action}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   )
 }

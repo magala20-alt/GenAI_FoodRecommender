@@ -1,6 +1,7 @@
 from app.models.ai_summary import AISummary
 from app.models.clinician_patient_list import ClinicianPatientList
 from app.models.cuisine_scores import CuisineScore
+from app.models.intervention_message import InterventionMessage
 from app.models.meal_trends import MealTrends
 from app.models.mealHistory import MealHistory
 from app.models.meals import Meals
@@ -17,6 +18,7 @@ __all__ = [
 	"ClinicianPatientList",
 	"AISummary",
 	"CuisineScore",
+	"InterventionMessage",
 	"MealHistory",
 	"MealTrends",
 	"Meals",

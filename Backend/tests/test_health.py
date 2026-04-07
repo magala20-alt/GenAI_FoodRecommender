@@ -66,6 +66,30 @@ def test_rag() ->None:
     assert "retrievedMeals" in json_response
     assert "numMealsRetrieved" in json_response
 
+def test_AI_summaries() -> None:
+    email = f"patient-summary-{uuid4().hex[:10]}@example.com"
+    register_response = client.post(
+        "/api/auth/register",
+        json={
+            "email": email,
+            "password": "Patient@12345",
+            "firstName": "Summary",
+            "lastName": "Patient",
+            "userType": "patient",
+        },
+    )
+
+    assert register_response.status_code == 201
+    payload = register_response.json()
+    access_token = payload.get("token") or payload.get("accessToken")
+    assert access_token is not None
+    
+    response = client.get("/api/patient-rag/summary", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200
+    json_response = response.json()
+    assert "summary" in json_response
+
+    
 if __name__ == "__main__":
     import pytest
 

@@ -3,6 +3,9 @@ Embedding Service - Generates vector embeddings for meals, recipes, and patient 
 Uses HuggingFace sentence transformers for efficient embedding generation.
 """
 
+import logging
+import os
+from pathlib import Path
 from typing import List
 import numpy as np
 from sentence_transformers import SentenceTransformer  # type: ignore
@@ -10,13 +13,50 @@ from sentence_transformers import SentenceTransformer  # type: ignore
 from app.core.config import settings
 
 
+logger = logging.getLogger(__name__)
+
+
 class EmbeddingService:
     """Manages embedding generation for RAG context retrieval."""
+
+    _model_cache: dict[str, SentenceTransformer] = {}
+
+    @staticmethod
+    def _clear_invalid_ssl_env_vars() -> bool:
+        """Remove broken SSL env var paths that can break HuggingFace/httpx downloads."""
+        changed = False
+        for env_name in ("SSL_CERT_FILE", "REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE"):
+            value = os.environ.get(env_name)
+            if not value:
+                continue
+
+            if not Path(value).exists():
+                os.environ.pop(env_name, None)
+                logger.warning("Removed invalid %s path: %s", env_name, value)
+                changed = True
+
+        return changed
     
     def __init__(self, model_name: str = None):
         """Initialize embedding model."""
         model_name = model_name or settings.embedding_model
-        self.model = SentenceTransformer(model_name)
+
+        cached_model = self._model_cache.get(model_name)
+        if cached_model is not None:
+            self.model = cached_model
+            self.dimension = settings.vector_db_dimension
+            return
+
+        try:
+            self.model = SentenceTransformer(model_name)
+        except OSError:
+            # Retry once after cleaning broken SSL env paths from the process.
+            cleaned = self._clear_invalid_ssl_env_vars()
+            if not cleaned:
+                raise
+            self.model = SentenceTransformer(model_name)
+
+        self._model_cache[model_name] = self.model
         self.dimension = settings.vector_db_dimension
     
     def generate_embedding(self, text: str) -> List[float]:

@@ -1,5 +1,6 @@
 from datetime import UTC, date, datetime, timedelta
 import json
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
@@ -11,6 +12,7 @@ from app.models.clinician_patient_list import ClinicianPatientList
 from app.models.ai_summary import AISummary
 from app.models.mealHistory import MealHistory
 from app.models.meals import Meals
+from app.models.intervention_message import InterventionMessage
 from app.models.patient_alert import PatientAlert
 from app.models.patient_onboarding import PatientOnboarding
 from app.models.schedule import Schedule
@@ -20,6 +22,8 @@ from app.models.userHealth_metrics import UserHealthReadings
 from app.models.user import User, UserRole
 from app.schemas.patients import (
     AlertsSummaryResponse,
+    AppointmentRescheduleRequest,
+    AppointmentRescheduleResponse,
     BloodWorkEntryCreateRequest,
     BloodWorkSnapshotRequest,
     BloodWorkSnapshotResponse,
@@ -27,12 +31,16 @@ from app.schemas.patients import (
     ClinicianPatientListItem,
     ClinicianPatientProfile,
     InterventionMessageRequest,
+    InterventionMessageRead,
     InterventionMessageResponse,
+    LatestInterventionMessageResponse,
+    NextAppointmentResponse,
     PatientAlertRead,
     PatientHealthReading,
     PatientMealLogItem,
     PatientMealsResponse,
     PatientMealsSummary,
+    PatientAppointmentRead,
     ScheduleMeetingRead,
     ScheduleAppointmentCreateRequest,
     ScheduleAppointmentRead,
@@ -44,8 +52,10 @@ from app.schemas.patients import (
 )
 from app.services.llm_client import get_llm_client
 from app.services.rag_manager import get_rag_manager
+from app.services.alerts import ensure_high_risk_alert
 
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/patients", tags=["patients"])
 
 
@@ -111,6 +121,299 @@ def _alerts_scope_patient_ids(db: Session, current_user: User) -> list[str]:
     return db.scalars(
         select(ClinicianPatientList.patient_id).where(ClinicianPatientList.clinician_id == current_user.id)
     ).all()
+
+
+def _assert_patient_visibility(db: Session, current_user: User, patient_id: str) -> User:
+    patient = db.get(User, patient_id)
+    if not patient or patient.role != UserRole.PATIENT:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Patient not found")
+
+    if current_user.role == UserRole.PATIENT:
+        if current_user.id != patient_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized for this patient")
+        return patient
+
+    _assert_clinician_access_to_patient(db, current_user, patient_id)
+    return patient
+
+
+def _open_alert_exists(db: Session, patient_id: str, alert_type: str) -> bool:
+    existing = db.scalar(
+        select(PatientAlert.id)
+        .where(
+            PatientAlert.patient_id == patient_id,
+            PatientAlert.alert_type == alert_type,
+            PatientAlert.status == "Open",
+        )
+        .limit(1)
+    )
+    return existing is not None
+
+
+def _generate_alert_reason_with_rag(
+    db: Session,
+    patient_id: str,
+    patient_name: str,
+    trigger_label: str,
+    latest_glucose: float | None,
+    latest_systolic: float | None,
+    latest_diastolic: float | None,
+    adherence: float | None,
+    risk_score: float | None,
+) -> str:
+    try:
+        meal_rows = db.execute(
+            select(MealHistory, Meals)
+            .outerjoin(Meals, Meals.id == MealHistory.meal_id)
+            .where(MealHistory.user_id == patient_id)
+            .order_by(MealHistory.consumed_at.desc())
+            .limit(8)
+        ).all()
+
+        meal_history: list[dict] = []
+        for history, meal in meal_rows:
+            meal_history.append(
+                {
+                    "meal_name": meal.name if meal else "Unknown meal",
+                    "calories": int(history.calories or (meal.calories if meal else 0) or 0),
+                    "protein_g": float((meal.protein_g if meal else 0) or 0),
+                    "carbs_g": float((meal.carbs_g if meal else 0) or 0),
+                    "date": history.consumed_at.isoformat() if history.consumed_at else None,
+                }
+            )
+
+        rag = get_rag_manager(db)
+        rag_result = rag.analyze_patient(
+            patient_id=patient_id,
+            patient_data={
+                "name": patient_name,
+                "risk_level": _risk_level_from_score(risk_score) or _legacy_risk_level(latest_glucose, latest_systolic) or "Unknown",
+                "current_metrics": {
+                    "blood_pressure": (
+                        f"{int(latest_systolic or 0)}/{int(latest_diastolic or 0)}"
+                        if latest_systolic is not None and latest_diastolic is not None
+                        else "N/A"
+                    ),
+                    "glucose": latest_glucose,
+                },
+            },
+            meal_history=meal_history,
+            predictions={"risk_signal": trigger_label},
+            recent_trends={
+                "adherence": adherence,
+                "trigger": trigger_label,
+            },
+        )
+        summary = str(rag_result.get("summary") or "").strip()
+        if summary:
+            return summary
+    except Exception as e:
+        logger.error(f"RAG generation failed for patient {patient_id} with trigger '{trigger_label}': {e}", exc_info=True)
+
+    return f"Patient flagged for {trigger_label.lower()} based on current metrics and adherence trends."
+
+
+def _ensure_relevant_alerts_for_patient(db: Session, patient_id: str) -> None:
+    patient = db.get(User, patient_id)
+    if not patient or patient.role != UserRole.PATIENT:
+        return
+
+    onboarding = db.scalar(select(PatientOnboarding).where(PatientOnboarding.user_id == patient_id))
+    metrics = db.scalar(select(UserMetrics).where(UserMetrics.user_id == patient_id))
+    latest = db.scalar(
+        select(UserHealthReadings)
+        .where(UserHealthReadings.user_id == patient_id)
+        .order_by(UserHealthReadings.timestamp.desc())
+        .limit(1)
+    )
+
+    logger.debug(f"Alert generation for {patient_id}: metrics exists={metrics is not None}")
+    
+    # Keep existing high-risk alert flow active when risk score is available.
+    ensure_high_risk_alert(db, patient_id)
+
+    latest_glucose = (latest.glucose if latest and latest.glucose is not None else (onboarding.glucose if onboarding else None))
+    latest_systolic = (latest.systolic_bp if latest and latest.systolic_bp is not None else (onboarding.bp_systolic if onboarding else None))
+    latest_diastolic = (latest.diastolic_bp if latest and latest.diastolic_bp is not None else (onboarding.bp_diastolic if onboarding else None))
+    adherence = (metrics.adherence if metrics else None)
+    risk_score = (onboarding.baseline_risk_score if onboarding else None)
+    patient_name = f"{patient.first_name} {patient.last_name}".strip()
+    
+    logger.debug(f"Patient {patient_id} metrics: adherence={adherence}, glucose={latest_glucose}, systolic={latest_systolic}")
+
+    candidates: list[tuple[str, str, str, bool]] = [
+        (
+            "glucose_elevated",
+            "Glucose elevated",
+            "Medium",
+            latest_glucose is not None and latest_glucose >= 140,
+        ),
+        (
+            "blood_pressure_elevated",
+            "Blood pressure elevated",
+            "Medium",
+            latest_systolic is not None and latest_systolic >= 140,
+        ),
+        (
+            "low_adherence",
+            "Low meal adherence detected",
+            "Medium",
+            adherence is not None and adherence < 60,
+        ),
+    ]
+
+    created_any = False
+    for alert_type, message, severity, should_create in candidates:
+        if not should_create:
+            logger.debug(f"Patient {patient_id}: Alert {alert_type} - condition not met")
+            continue
+        
+        if _open_alert_exists(db, patient_id, alert_type):
+            logger.debug(f"Patient {patient_id}: Alert {alert_type} - already exists as open")
+            continue
+
+        logger.info(f"Patient {patient_id}: Creating alert {alert_type} - {message}")
+        reason = _generate_alert_reason_with_rag(
+            db=db,
+            patient_id=patient_id,
+            patient_name=patient_name,
+            trigger_label=message,
+            latest_glucose=latest_glucose,
+            latest_systolic=latest_systolic,
+            latest_diastolic=latest_diastolic,
+            adherence=adherence,
+            risk_score=risk_score,
+        )
+
+        db.add(
+            PatientAlert(
+                patient_id=patient_id,
+                alert_type=alert_type,
+                severity=severity,
+                alert_message=message,
+                llm_reason=reason,
+                risk_score_snapshot=risk_score,
+                status="Open",
+                created_at=datetime.now(UTC),
+            )
+        )
+        created_any = True
+
+    if created_any:
+        logger.info(f"Patient {patient_id}: Committing {created_any} alert(s)")
+        db.commit()
+    else:
+        logger.debug(f"Patient {patient_id}: No new alerts created")
+
+
+def _ensure_relevant_alerts_for_patients(db: Session, patient_ids: list[str]) -> None:
+    for pid in patient_ids:
+        _ensure_relevant_alerts_for_patient(db, pid)
+
+
+def _parse_schedule_payload(row: Schedule) -> dict:
+    return _extract_json_object(row.schedule_data)
+
+
+def _parse_scheduled_at(value: object) -> datetime | None:
+    if not value:
+        return None
+    try:
+        scheduled_at = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if scheduled_at.tzinfo is None:
+        scheduled_at = scheduled_at.replace(tzinfo=UTC)
+    return scheduled_at
+
+
+def _build_patient_appointment_read(row: Schedule, patient_name: str | None = None) -> PatientAppointmentRead | None:
+    payload = _parse_schedule_payload(row)
+    scheduled_at = _parse_scheduled_at(payload.get("scheduledAt"))
+    if scheduled_at is None:
+        return None
+
+    return PatientAppointmentRead(
+        id=row.id,
+        patientId=row.patient_id,
+        patientName=patient_name,
+        scheduledAt=scheduled_at,
+        title=str(payload.get("title") or "Check-in"),
+        detail=str(payload.get("detail") or "Scheduled appointment"),
+        period=scheduled_at.strftime("%p"),
+        dateLabel=scheduled_at.strftime("%Y-%m-%d"),
+        rescheduleStatus=payload.get("rescheduleStatus"),
+        rescheduleReason=payload.get("rescheduleReason"),
+        rescheduleAlertId=payload.get("rescheduleAlertId"),
+    )
+
+
+def _find_next_appointment(db: Session, patient_id: str) -> Schedule | None:
+    rows = db.scalars(
+        select(Schedule)
+        .where(Schedule.patient_id == patient_id)
+        .order_by(Schedule.created_at.desc())
+        .limit(200)
+    ).all()
+
+    now = datetime.now(UTC)
+    upcoming: list[tuple[datetime, Schedule]] = []
+    for row in rows:
+        payload = _parse_schedule_payload(row)
+        scheduled_at = _parse_scheduled_at(payload.get("scheduledAt"))
+        if scheduled_at is None or scheduled_at < now:
+            continue
+        upcoming.append((scheduled_at, row))
+
+    if not upcoming:
+        return None
+
+    upcoming.sort(key=lambda item: item[0])
+    return upcoming[0][1]
+
+
+def _update_schedule_reschedule_state(
+    db: Session,
+    appointment_id: str,
+    reschedule_status: str,
+    reschedule_reason: str | None = None,
+    reschedule_alert_id: str | None = None,
+) -> None:
+    row = db.get(Schedule, appointment_id)
+    if row is None:
+        return
+
+    payload = _parse_schedule_payload(row)
+    payload["rescheduleStatus"] = reschedule_status
+    if reschedule_reason is not None:
+        payload["rescheduleReason"] = reschedule_reason
+    if reschedule_alert_id is not None:
+        payload["rescheduleAlertId"] = reschedule_alert_id
+    row.schedule_data = json.dumps(payload)
+    db.add(row)
+
+
+def _auto_shift_schedule_date(db: Session, appointment_id: str) -> datetime | None:
+    row = db.get(Schedule, appointment_id)
+    if row is None:
+        return None
+
+    payload = _parse_schedule_payload(row)
+    scheduled_at = _parse_scheduled_at(payload.get("scheduledAt"))
+    if scheduled_at is None:
+        return None
+
+    now = datetime.now(UTC)
+    base = scheduled_at if scheduled_at > now else now
+    shifted = base + timedelta(days=7)
+
+    payload["scheduledAt"] = shifted.isoformat()
+    detail = str(payload.get("detail") or "Scheduled appointment")
+    if "Reschedule approved" not in detail:
+        payload["detail"] = f"{detail} (Reschedule approved by clinician)"
+    row.schedule_data = json.dumps(payload)
+    db.add(row)
+    return shifted
 
 
 def _infer_meal_type(consumed_at: datetime | None) -> str | None:
@@ -412,18 +715,6 @@ def _to_ai_summary_read(db: Session, row: AISummary) -> AISummaryRead:
         summaryText=row.summary_text,
         suggestedActions=_actions_from_json(row.suggested_actions),
     )
-    stripped = raw_text.strip()
-    try:
-        return json.loads(stripped)
-    except json.JSONDecodeError:
-        start = stripped.find("{")
-        end = stripped.rfind("}")
-        if start != -1 and end != -1 and end > start:
-            try:
-                return json.loads(stripped[start : end + 1])
-            except json.JSONDecodeError:
-                return {}
-        return {}
 
 
 def _extract_snapshot_with_llm(payload: BloodWorkSnapshotRequest) -> BloodWorkSnapshotResponse:
@@ -438,31 +729,19 @@ def _extract_snapshot_with_llm(payload: BloodWorkSnapshotRequest) -> BloodWorkSn
     if payload.extracted_text:
         content_blocks.append({"type": "text", "text": f"Text snapshot:\n{payload.extracted_text}"})
 
+    llm_client = get_llm_client()
     llm_raw = ""
 
-    # Try OpenAI vision when an image is provided; fallback to text-only LLM extraction.
+    # Try multimodal extraction first when an image is available; otherwise use text-only extraction.
     if payload.image_data_url:
         try:
-            import openai
-
-            from app.core.config import settings
-
-            client = openai.OpenAI(api_key=settings.llm_api_key)
             image_blocks = list(content_blocks)
             image_blocks.append({"type": "image_url", "image_url": {"url": payload.image_data_url}})
-
-            response = client.chat.completions.create(
-                model=settings.llm_model,
-                messages=[{"role": "user", "content": image_blocks}],
-                temperature=0,
-                max_tokens=700,
-            )
-            llm_raw = response.choices[0].message.content or ""
+            llm_raw = llm_client.call(messages=[{"role": "user", "content": image_blocks}])
         except Exception:
             llm_raw = ""
 
     if not llm_raw:
-        llm_client = get_llm_client()
         llm_raw = llm_client.call(
             messages=[
                 {
@@ -564,6 +843,22 @@ def get_patient_profile(
         )
     ) or 0
 
+    # Calculate missed appointments: past appointments without pending reschedule
+    missed_appointments = 0
+    all_schedules = db.scalars(
+        select(Schedule).where(Schedule.patient_id == patient_id)
+    ).all()
+    now = datetime.now(UTC)
+    for schedule in all_schedules:
+        payload = _parse_schedule_payload(schedule)
+        scheduled_at = _parse_scheduled_at(payload.get("scheduledAt"))
+        if scheduled_at and scheduled_at < now:
+            # Appointment is in the past; check if it has a pending reschedule
+            reschedule_status = payload.get("rescheduleStatus")
+            if reschedule_status != "pending":
+                # No pending reschedule means it wasn't rescheduled, so it was missed
+                missed_appointments += 1
+
     latest_glucose = (latest_reading.glucose if latest_reading else None) or (onboarding.glucose if onboarding else None)
     latest_systolic = (latest_reading.systolic_bp if latest_reading else None) or (onboarding.bp_systolic if onboarding else None)
     diet_goals = onboarding.diet_goals if onboarding else []
@@ -619,7 +914,7 @@ def get_patient_profile(
         mealsLogged=(metrics.total_meals_logged if metrics else None),
         streak=(metrics.streak if metrics else None),
         sessions7d=(sessions_7d if sessions_7d else None),
-        missedAppointments=None,
+        missedAppointments=(missed_appointments if missed_appointments > 0 else None),
         alertsCount=(db.scalar(select(func.count(PatientAlert.id)).where(PatientAlert.patient_id == patient_id, PatientAlert.status == "Open")) or 0),
     )
 
@@ -631,6 +926,7 @@ def get_patient_alerts(
     current_user: User = Depends(get_current_user),
 ) -> list[PatientAlertRead]:
     patient = _assert_clinician_access_to_patient(db, current_user, patient_id)
+    _ensure_relevant_alerts_for_patient(db, patient_id)
     rows = db.scalars(
         select(PatientAlert)
         .where(PatientAlert.patient_id == patient_id)
@@ -669,6 +965,8 @@ def get_alerts(
     if not allowed_ids:
         return []
 
+    _ensure_relevant_alerts_for_patients(db, allowed_ids)
+
     patient_name_rows = db.execute(select(User.id, User.first_name, User.last_name).where(User.id.in_(allowed_ids))).all()
     names = {pid: f"{first} {last}".strip() for pid, first, last in patient_name_rows}
 
@@ -702,6 +1000,8 @@ def get_alerts_summary(
     allowed_ids = _alerts_scope_patient_ids(db, current_user)
     if not allowed_ids:
         return AlertsSummaryResponse(openCount=0, highCount=0, mediumCount=0, lowCount=0)
+
+    _ensure_relevant_alerts_for_patients(db, allowed_ids)
 
     open_count = db.scalar(
         select(func.count(PatientAlert.id)).where(PatientAlert.patient_id.in_(allowed_ids), PatientAlert.status == "Open")
@@ -751,6 +1051,79 @@ def dismiss_alert(
         status=alert.status,
         createdAt=alert.created_at,
     )
+
+
+def _respond_to_reschedule_alert(
+    alert_id: str,
+    action: str,
+    db: Session,
+    current_user: User,
+) -> PatientAlertRead:
+    alert = db.get(PatientAlert, alert_id)
+    if not alert:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found")
+
+    _assert_clinician_access_to_patient(db, current_user, alert.patient_id)
+
+    if "reschedule" not in alert.alert_type.lower():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Alert is not a reschedule request")
+
+    alert.status = "Resolved" if action == "approve" else "Dismissed"
+    alert.clinician_response = "Approved" if action == "approve" else "Disapproved"
+    alert.resolved_at = datetime.now(UTC)
+    db.add(alert)
+
+    if alert.llm_reason:
+        shifted_to = None
+        if action == "approve":
+            shifted_to = _auto_shift_schedule_date(db, appointment_id=alert.llm_reason)
+
+        _update_schedule_reschedule_state(
+            db,
+            appointment_id=alert.llm_reason,
+            reschedule_status="approved" if action == "approve" else "rejected",
+            reschedule_alert_id=alert.id,
+        )
+
+        if shifted_to is not None:
+            alert.clinician_response = f"Approved - moved to {shifted_to.strftime('%Y-%m-%d %H:%M UTC')}"
+            db.add(alert)
+
+    db.commit()
+    db.refresh(alert)
+
+    patient = db.get(User, alert.patient_id)
+    patient_name = f"{patient.first_name} {patient.last_name}".strip() if patient else "Unknown"
+    return PatientAlertRead(
+        id=alert.id,
+        patientId=alert.patient_id,
+        patientName=patient_name,
+        alertType=alert.alert_type,
+        severity=alert.severity,
+        message=alert.alert_message,
+        llmReason=alert.llm_reason,
+        riskScoreSnapshot=alert.risk_score_snapshot,
+        status=alert.status,
+        createdAt=alert.created_at,
+    )
+
+
+@router.post("/alerts/{alert_id}/reschedule/approve", response_model=PatientAlertRead)
+def approve_reschedule_request(
+    alert_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> PatientAlertRead:
+    return _respond_to_reschedule_alert(alert_id=alert_id, action="approve", db=db, current_user=current_user)
+
+
+@router.post("/alerts/{alert_id}/reschedule/disapprove", response_model=PatientAlertRead)
+def disapprove_reschedule_request(
+    alert_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> PatientAlertRead:
+    return _respond_to_reschedule_alert(alert_id=alert_id, action="disapprove", db=db, current_user=current_user)
 
 
 @router.get("/schedule/today", response_model=ScheduleTodayResponse)
@@ -856,6 +1229,9 @@ def create_schedule_appointment(
         "scheduledAt": payload.scheduled_at.isoformat(),
         "title": payload.title,
         "detail": payload.detail or "Scheduled appointment",
+        "rescheduleStatus": None,
+        "rescheduleReason": None,
+        "rescheduleAlertId": None,
     }
     row = Schedule(
         patient_id=payload.patient_id,
@@ -868,6 +1244,7 @@ def create_schedule_appointment(
     scheduled_at = payload.scheduled_at
     if scheduled_at.tzinfo is None:
         scheduled_at = scheduled_at.replace(tzinfo=UTC)
+
     return ScheduleMeetingRead(
         id=row.id,
         time=scheduled_at.strftime("%I:%M").lstrip("0"),
@@ -877,6 +1254,83 @@ def create_schedule_appointment(
         borderTone="high" if scheduled_at.hour < 12 else "medium" if scheduled_at.hour < 16 else "low",
         badgeLabel=None,
         badgeTone=None,
+    )
+
+
+@router.get("/schedule/next", response_model=NextAppointmentResponse)
+def get_next_patient_appointment(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> NextAppointmentResponse:
+    if current_user.role != UserRole.PATIENT:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Patient access required")
+
+    next_row = _find_next_appointment(db, current_user.id)
+    if next_row is None:
+        return NextAppointmentResponse(hasAppointment=False, appointment=None)
+
+    appointment = _build_patient_appointment_read(next_row)
+    if appointment is None:
+        return NextAppointmentResponse(hasAppointment=False, appointment=None)
+
+    patient = db.get(User, current_user.id)
+    if patient is not None:
+        appointment.patient_name = f"{patient.first_name} {patient.last_name}".strip()
+
+    return NextAppointmentResponse(hasAppointment=True, appointment=appointment)
+
+
+@router.post("/schedule/reschedule-request", response_model=AppointmentRescheduleResponse)
+def request_schedule_reschedule(
+    payload: AppointmentRescheduleRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> AppointmentRescheduleResponse:
+    if current_user.role != UserRole.PATIENT:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Patient access required")
+
+    reason = payload.reason.strip()
+    if not reason:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Reason cannot be empty")
+
+    next_row = _find_next_appointment(db, current_user.id)
+    if next_row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No upcoming appointment found")
+
+    patient = db.get(User, current_user.id)
+    patient_name = f"{patient.first_name} {patient.last_name}".strip() if patient else "Patient"
+    appointment = _build_patient_appointment_read(next_row, patient_name)
+    if appointment is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No upcoming appointment found")
+
+    alert = PatientAlert(
+        patient_id=current_user.id,
+        alert_type="Reschedule Request",
+        severity="Medium",
+        alert_message=reason,
+        llm_reason=appointment.id,
+        status="Open",
+    )
+    db.add(alert)
+    db.flush()
+
+    _update_schedule_reschedule_state(
+        db,
+        appointment_id=appointment.id,
+        reschedule_status="pending",
+        reschedule_reason=reason,
+        reschedule_alert_id=alert.id,
+    )
+    db.commit()
+
+    appointment.reschedule_status = "pending"
+    appointment.reschedule_reason = reason
+    appointment.reschedule_alert_id = alert.id
+
+    return AppointmentRescheduleResponse(
+        status="queued",
+        detail="Reschedule request sent to your doctor",
+        appointment=appointment,
     )
 
 
@@ -963,7 +1417,7 @@ def create_schedule_task(
     )
 
 
-@router.get("/ai-summaries", response_model=list[AISummaryRead])
+@router.get("/summaries/ai", response_model=list[AISummaryRead])
 def get_ai_summaries(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -990,7 +1444,7 @@ def get_ai_summaries(
     return [_to_ai_summary_read(db, row) for row in rows]
 
 
-@router.post("/ai-summaries/regenerate", response_model=AISummariesRegenerateResponse)
+@router.post("/summaries/ai/regenerate", response_model=AISummariesRegenerateResponse)
 def regenerate_ai_summaries(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -1077,10 +1531,55 @@ def send_intervention_message(
     if not clean_message:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Message cannot be empty")
 
-    # Placeholder for Expo push integration: this endpoint validates and accepts the message.
+    message = InterventionMessage(
+        patient_id=patient_id,
+        clinician_id=current_user.id,
+        message=clean_message,
+    )
+    db.add(message)
+    db.commit()
+
+    # Placeholder for Expo push integration: message is now persisted and can be retrieved by the patient app.
     return InterventionMessageResponse(
         status="queued",
         detail="Intervention message queued for patient app delivery",
+    )
+
+
+@router.get("/{patient_id}/intervention-message/latest", response_model=LatestInterventionMessageResponse)
+def get_latest_intervention_message(
+    patient_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> LatestInterventionMessageResponse:
+    _assert_patient_visibility(db, current_user, patient_id)
+
+    latest = db.scalar(
+        select(InterventionMessage)
+        .where(InterventionMessage.patient_id == patient_id)
+        .order_by(InterventionMessage.created_at.desc())
+        .limit(1)
+    )
+
+    if latest is None:
+        return LatestInterventionMessageResponse(hasMessage=False, message=None)
+
+    clinician_name = None
+    if latest.clinician_id:
+        clinician = db.get(User, latest.clinician_id)
+        if clinician:
+            clinician_name = f"{clinician.first_name} {clinician.last_name}".strip()
+
+    return LatestInterventionMessageResponse(
+        hasMessage=True,
+        message=InterventionMessageRead(
+            id=latest.id,
+            patientId=latest.patient_id,
+            clinicianId=latest.clinician_id,
+            clinicianName=clinician_name,
+            message=latest.message,
+            createdAt=latest.created_at,
+        ),
     )
 
 
@@ -1116,8 +1615,8 @@ def get_patient_meals(
         logs.append(
             PatientMealLogItem(
                 id=history.id,
-                mealName=(meal.name if meal else None),
-                mealType=_infer_meal_type(consumed_at),
+                meal_name=(history.meal_name or (meal.name if meal else None) or "Logged meal"),
+                meal_type=_infer_meal_type(consumed_at),
                 cuisine=(meal.cuisine if meal else None),
                 calories=(int(calories_value) if calories_value is not None else None),
                 budget=(onboarding.budget_preference if onboarding else None),

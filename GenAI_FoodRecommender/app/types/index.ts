@@ -17,6 +17,7 @@ export interface User {
   firstName: string
   lastName: string
   userType: 'patient' | 'doctor'
+  role?: 'patient' | 'clinician' | 'admin'
   avatar?: string
   onboardingCompleted?: boolean
 }

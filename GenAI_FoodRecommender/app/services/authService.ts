@@ -22,6 +22,7 @@ const mapUser = (user: BackendUser): User => ({
   firstName: user.firstName,
   lastName: user.lastName,
   userType: user.role === 'patient' ? 'patient' : 'doctor',
+  role: user.role,
   onboardingCompleted: user.onboardingCompleted,
 })
 
@@ -92,5 +93,13 @@ export const authService = {
 
   async resetPassword(token: string, newPassword: string): Promise<{ detail: string }> {
     return apiClient.post<{ detail: string }>('/auth/reset-password', { token, newPassword })
+  },
+
+  async changePassword(currentPassword: string, newPassword: string): Promise<User> {
+    const response = await apiClient.post<BackendUser>('/auth/change-password', {
+      currentPassword,
+      newPassword,
+    })
+    return mapUser(response)
   },
 }

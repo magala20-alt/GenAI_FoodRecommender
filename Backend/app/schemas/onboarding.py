@@ -26,6 +26,7 @@ class OnboardingCompletionRequest(BaseModel):
 
 class OnboardingStatusResponse(BaseModel):
     onboarding_completed: bool = Field(alias="onboardingCompleted")
+    completed_at: datetime | None = Field(default=None, alias="completedAt")
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -51,3 +52,19 @@ class PatientOnboardingRead(BaseModel):
     calorie_target: int | None = Field(default=None, alias="calorieTarget")
     completed_at: datetime | None = Field(default=None, alias="completedAt")
     updated_at: datetime = Field(alias="updatedAt")
+
+
+class PatientOnboardingUpdateRequest(BaseModel):
+    budget_preference: str | None = Field(default=None, alias="budgetPreference")
+    country: str | None = None
+    weight_kg: float | None = Field(default=None, alias="weightKg")
+    height_cm: float | None = Field(default=None, alias="heightCm")
+    bp_systolic: int | None = Field(default=None, alias="bpSystolic")
+    bp_diastolic: int | None = Field(default=None, alias="bpDiastolic")
+    primary_goal: str | None = Field(default=None, alias="primaryGoal")
+    target_weight_kg: float | None = Field(default=None, alias="targetWeightKg")
+    calorie_target: int | None = Field(default=None, alias="calorieTarget")
+    cuisine_preferences: list[str] | None = Field(default=None, alias="cuisinePreferences")
+    daily_step_goal: int | None = Field(default=None, alias="dailyStepGoal")
+
+    model_config = ConfigDict(populate_by_name=True)

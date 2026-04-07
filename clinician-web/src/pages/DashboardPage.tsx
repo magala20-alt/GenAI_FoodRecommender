@@ -62,31 +62,45 @@ export function DashboardPage() {
   useEffect(() => {
     let isActive = true
     const loadDashboard = async () => {
-      try {
-        setIsLoading(true)
-        const [list, summary, alertsList, scheduleToday, summaries] = await Promise.all([
-          patientService.getPatientListForClinician(),
-          patientService.getAlertsSummary(),
-          patientService.getAlerts(),
-          patientService.getScheduleToday(),
-          patientService.getAISummaries(),
-        ])
-        if (!isActive) return
-        setPatients(list)
-        setAlertsSummary(summary)
-        setAlerts(alertsList.slice(0, 4))
-        setSchedule(scheduleToday)
-        setAiSummaries(summaries)
-      } catch {
-        if (!isActive) return
-        setPatients([])
-        setAlertsSummary({ openCount: 0, highCount: 0, mediumCount: 0, lowCount: 0 })
-        setAlerts([])
-        setSchedule({ dateLabel: '', meetings: [], todos: [] })
-        setAiSummaries([])
-      } finally {
-        if (isActive) setIsLoading(false)
+      setIsLoading(true)
+
+      const [listRes, summaryRes, alertsRes, scheduleRes, summariesRes] = await Promise.allSettled([
+        patientService.getPatientListForClinician(),
+        patientService.getAlertsSummary(),
+        patientService.getAlerts(),
+        patientService.getScheduleToday(),
+        patientService.getAISummaries(),
+      ])
+
+      if (!isActive) return
+
+      setPatients(listRes.status === 'fulfilled' ? listRes.value : [])
+      setAlertsSummary(
+        summaryRes.status === 'fulfilled'
+          ? summaryRes.value
+          : { openCount: 0, highCount: 0, mediumCount: 0, lowCount: 0 },
+      )
+      setAlerts(alertsRes.status === 'fulfilled' ? alertsRes.value.slice(0, 4) : [])
+      setSchedule(scheduleRes.status === 'fulfilled' ? scheduleRes.value : { dateLabel: '', meetings: [], todos: [] })
+      setAiSummaries(summariesRes.status === 'fulfilled' ? summariesRes.value : [])
+
+      if (listRes.status === 'rejected') {
+        console.error('Dashboard patient list failed', listRes.reason)
       }
+      if (summaryRes.status === 'rejected') {
+        console.error('Dashboard alerts summary failed', summaryRes.reason)
+      }
+      if (alertsRes.status === 'rejected') {
+        console.error('Dashboard alerts failed', alertsRes.reason)
+      }
+      if (scheduleRes.status === 'rejected') {
+        console.error('Dashboard schedule failed', scheduleRes.reason)
+      }
+      if (summariesRes.status === 'rejected') {
+        console.error('Dashboard AI summaries failed', summariesRes.reason)
+      }
+
+      setIsLoading(false)
     }
 
     void loadDashboard()

@@ -383,6 +383,14 @@ export const patientService = {
     return apiClient.post<PatientAlert>(`/patients/alerts/${alertId}/dismiss`)
   },
 
+  async approveRescheduleRequest(alertId: number | string): Promise<PatientAlert> {
+    return apiClient.post<PatientAlert>(`/patients/alerts/${alertId}/reschedule/approve`)
+  },
+
+  async disapproveRescheduleRequest(alertId: number | string): Promise<PatientAlert> {
+    return apiClient.post<PatientAlert>(`/patients/alerts/${alertId}/reschedule/disapprove`)
+  },
+
   async getScheduleToday(): Promise<ScheduleTodayResponse> {
     return apiClient.get<ScheduleTodayResponse>(`/patients/schedule/today`)
   },
@@ -527,11 +535,11 @@ export const patientService = {
   },
 
   async getAISummaries(): Promise<PatientAISummary[]> {
-    return apiClient.get<PatientAISummary[]>(`/patients/ai-summaries`)
+    return apiClient.get<PatientAISummary[]>(`/patients/summaries/ai`)
   },
 
   async regenerateAISummaries(): Promise<AISummariesRegenerateResponse> {
-    return apiClient.post<AISummariesRegenerateResponse>(`/patients/ai-summaries/regenerate`)
+    return apiClient.post<AISummariesRegenerateResponse>(`/patients/summaries/ai/regenerate`)
   },
 
   async regeneratePatientAISummary(patientId: string): Promise<PatientAISummary> {
