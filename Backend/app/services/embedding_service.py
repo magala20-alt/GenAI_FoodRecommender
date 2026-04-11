@@ -6,9 +6,8 @@ Uses HuggingFace sentence transformers for efficient embedding generation.
 import logging
 import os
 from pathlib import Path
-from typing import List
+from typing import Any, List
 import numpy as np
-from sentence_transformers import SentenceTransformer  # type: ignore
 
 from app.core.config import settings
 
@@ -19,7 +18,7 @@ logger = logging.getLogger(__name__)
 class EmbeddingService:
     """Manages embedding generation for RAG context retrieval."""
 
-    _model_cache: dict[str, SentenceTransformer] = {}
+    _model_cache: dict[str, Any] = {}
 
     @staticmethod
     def _clear_invalid_ssl_env_vars() -> bool:
@@ -48,12 +47,14 @@ class EmbeddingService:
             return
 
         try:
+            from sentence_transformers import SentenceTransformer  # type: ignore
             self.model = SentenceTransformer(model_name)
         except OSError:
             # Retry once after cleaning broken SSL env paths from the process.
             cleaned = self._clear_invalid_ssl_env_vars()
             if not cleaned:
                 raise
+            from sentence_transformers import SentenceTransformer  # type: ignore
             self.model = SentenceTransformer(model_name)
 
         self._model_cache[model_name] = self.model

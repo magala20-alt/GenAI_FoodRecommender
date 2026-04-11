@@ -333,7 +333,7 @@ export function AlertsPage() {
                               onClick={() => navigate(`/patients/${alert.patientId}?tab=care-plan`)}
                               className="text-xs px-2.5 py-1 rounded-md border bg-teal-500 border-teal-500 text-white hover:bg-teal-600"
                             >
-                              Intervene
+                              See Care Plan
                             </button>
                             <button
                               onClick={() => handleDismiss(alert.id)}

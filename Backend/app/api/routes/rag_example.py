@@ -285,32 +285,4 @@ async def rag_health_check(db: Session = Depends(get_db)):
         }
 
 
-# ============ Usage Guide ============
 
-"""
-INTEGRATION GUIDE:
-
-1. Add to your main.py:
-   from your_route_file import router as rag_router
-   app.include_router(rag_router)
-
-2. Set environment variables:
-   - LLM_PROVIDER=openai (or "anthropic")
-   - LLM_API_KEY=sk-...
-   - LLM_MODEL=gpt-4 (or claude-3-sonnet-20240229)
-   - EMBEDDING_MODEL=all-MiniLM-L6-v2
-
-3. First time setup - generate embeddings for meals:
-   POST /api/v1/rag/embeddings/batch
-   with meal data to index them
-
-4. Then start using the endpoints!
-
-For the data flow:
-   User Query → Embedding → Vector Search → Context Building → LLM → Response
-
-Common Issues:
-- If embeddings are zero vectors: meal has no description
-- If LLM fails: Check API key and model name
-- If searches return nothing: Meals haven't been embedded yet (run batch generation)
-"""

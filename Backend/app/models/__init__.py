@@ -9,6 +9,7 @@ from app.models.password_reset_token import PasswordResetToken
 from app.models.patient_onboarding import PatientOnboarding
 from app.models.patient_alert import PatientAlert
 from app.models.schedule import Schedule
+from app.models.suggested_meal import SuggestedMeal, SuggestedMealStatus
 from app.models.task import Task
 from app.models.userHealth_metrics import UserHealthReadings
 from app.models.user import User, UserRole
@@ -26,6 +27,8 @@ __all__ = [
 	"PatientOnboarding",
 	"PatientAlert",
 	"Schedule",
+	"SuggestedMeal",
+	"SuggestedMealStatus",
 	"Task",
 	"UserHealthReadings",
 	"User",

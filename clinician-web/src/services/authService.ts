@@ -39,9 +39,35 @@ const mapAuthResponse = (response: BackendAuthResponse): AuthResponse => ({
 
 const getErrorMessage = (error: unknown): string => {
   if (typeof error === 'object' && error !== null && 'response' in error) {
-    const response = (error as { response?: { data?: { detail?: string } } }).response
-    if (response?.data?.detail) {
-      return response.data.detail
+    const response = (error as { response?: { data?: unknown } }).response
+    const data = response?.data as { detail?: unknown; message?: unknown } | undefined
+
+    if (typeof data?.detail === 'string' && data.detail.trim()) {
+      return data.detail
+    }
+
+    if (Array.isArray(data?.detail)) {
+      const messages = data.detail
+        .map(item => {
+          if (typeof item === 'string') {
+            return item
+          }
+
+          if (item && typeof item === 'object' && 'msg' in item) {
+            return String((item as { msg?: unknown }).msg || '')
+          }
+
+          return ''
+        })
+        .filter(Boolean)
+
+      if (messages.length > 0) {
+        return messages.join('. ')
+      }
+    }
+
+    if (typeof data?.message === 'string' && data.message.trim()) {
+      return data.message
     }
   }
 

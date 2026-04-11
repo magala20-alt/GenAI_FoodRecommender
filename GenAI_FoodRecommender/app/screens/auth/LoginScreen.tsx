@@ -28,6 +28,14 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [apiError, setApiError] = useState<string | null>(null)
 
+  const normalizedApiError = apiError?.toLowerCase() ?? ''
+  const showInvalidPasswordStatus =
+    normalizedApiError.includes('incorrect password') ||
+    normalizedApiError.includes('wrong password') ||
+    normalizedApiError.includes('invalid password') ||
+    normalizedApiError.includes('invalid credentials') ||
+    normalizedApiError.includes('incorrect email or password')
+
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {}
 
@@ -99,7 +107,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
             </Text>
 
             {/* API Error */}
-            {apiError && (
+            {showInvalidPasswordStatus && (
+              <Text style={styles.statusParagraph}>
+                The password you entered is incorrect. Please try again or reset your password.
+              </Text>
+            )}
+
+            {apiError && !showInvalidPasswordStatus && (
               <View style={styles.errorBanner}>
                 <Text style={styles.errorBannerText}>{apiError}</Text>
               </View>
@@ -227,6 +241,12 @@ const styles = StyleSheet.create({
     fontSize: Typography.sizes.bodySmall,
     color: 'rgba(255, 255, 255, 0.8)',
     marginBottom: Spacing.lg,
+  },
+  statusParagraph: {
+    fontSize: Typography.sizes.bodySmall,
+    color: '#fde68a',
+    marginBottom: Spacing.lg,
+    lineHeight: Typography.sizes.bodySmall * 1.5,
   },
   errorBanner: {
     backgroundColor: 'rgba(239, 68, 68, 0.2)',

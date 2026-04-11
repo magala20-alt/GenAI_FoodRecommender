@@ -15,6 +15,7 @@ import {
 } from 'react-native'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import * as ImagePicker from 'expo-image-picker'
+import { Audio } from 'expo-av'
 
 import { BorderRadius, Colors, Spacing, Typography, scale } from '../../constants/theme'
 import { useAuth } from '../../hooks'
@@ -43,6 +44,10 @@ export function DiaryScreen() {
   const [mealType, setMealType] = useState<'Breakfast' | 'Lunch' | 'Dinner' | 'Snack'>('Dinner')
   const [imageDataUrl, setImageDataUrl] = useState<string | undefined>(undefined)
   const [voiceTranscript, setVoiceTranscript] = useState('')
+  const [voiceRecording, setVoiceRecording] = useState<Audio.Recording | null>(null)
+  const [isRecordingVoice, setIsRecordingVoice] = useState(false)
+  const [voiceRecordingUri, setVoiceRecordingUri] = useState<string | null>(null)
+  const [voiceDurationMs, setVoiceDurationMs] = useState(0)
   const [manualDescription, setManualDescription] = useState('')
   const [detectedMealName, setDetectedMealName] = useState('')
   const [detectedCalories, setDetectedCalories] = useState<number>(0)
@@ -100,6 +105,7 @@ export function DiaryScreen() {
       }
     }
 
+    //vitals from database
     const loadVitals = async () => {
       if (user?.userType !== 'patient' || user?.role === 'admin') {
         setRawVitalsHistory([])
@@ -144,6 +150,14 @@ export function DiaryScreen() {
     void loadHistory()
     void loadVitals()
   }, [user?.userType, user?.role])
+
+  useEffect(() => {
+    return () => {
+      if (voiceRecording) {
+        void voiceRecording.stopAndUnloadAsync()
+      }
+    }
+  }, [voiceRecording])
 
   const latestGlucoseValue = useMemo(() => {
     const found = rawVitalsHistory.find(item => item.glucose != null)?.glucose
@@ -216,7 +230,7 @@ export function DiaryScreen() {
     }
 
     if (inputMode === 'voice' && !voiceTranscript.trim()) {
-      Alert.alert('Voice transcript required', 'Add your voice transcript to estimate calories.')
+      Alert.alert('Voice input required', 'Record your voice meal description first.')
       return
     }
 
@@ -251,6 +265,61 @@ export function DiaryScreen() {
       Alert.alert('Analysis failed', 'Could not analyze this meal. Try manual input or a clearer image.')
     } finally {
       setLoadingSnapshot(false)
+    }
+  }
+
+  const formatRecordingDuration = (durationMs: number) => {
+    const totalSeconds = Math.max(0, Math.floor(durationMs / 1000))
+    const minutes = Math.floor(totalSeconds / 60)
+    const seconds = totalSeconds % 60
+    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+  }
+
+  const startVoiceRecording = async () => {
+    try {
+      const permission = await Audio.requestPermissionsAsync()
+      if (!permission.granted) {
+        Alert.alert('Microphone permission needed', 'Enable microphone access to record voice meal notes.')
+        return
+      }
+
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+      })
+
+      const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY)
+      setVoiceRecording(recording)
+      setVoiceDurationMs(0)
+      setVoiceRecordingUri(null)
+      setVoiceTranscript('')
+      setIsRecordingVoice(true)
+    } catch (error) {
+      console.error('Voice recording start failed', error)
+      Alert.alert('Microphone error', 'Could not start recording. Please try again.')
+    }
+  }
+
+  const stopVoiceRecording = async () => {
+    if (!voiceRecording) {
+      return
+    }
+
+    try {
+      await voiceRecording.stopAndUnloadAsync()
+      const status = await voiceRecording.getStatusAsync()
+      const uri = voiceRecording.getURI() || null
+      const duration = status.durationMillis ?? 0
+
+      setVoiceDurationMs(duration)
+      setVoiceRecordingUri(uri)
+      setIsRecordingVoice(false)
+      setVoiceRecording(null)
+    } catch (error) {
+      console.error('Voice recording stop failed', error)
+      Alert.alert('Recording error', 'Could not stop recording cleanly. Please try again.')
+      setIsRecordingVoice(false)
+      setVoiceRecording(null)
     }
   }
 
@@ -326,6 +395,8 @@ export function DiaryScreen() {
       setDetectedTags([])
       setImageDataUrl(undefined)
       setVoiceTranscript('')
+      setVoiceRecordingUri(null)
+      setVoiceDurationMs(0)
       setManualDescription('')
       Alert.alert('Saved', 'Meal log saved to your history.')
     } catch (error) {
@@ -459,13 +530,32 @@ export function DiaryScreen() {
             ) : null}
 
             {inputMode === 'voice' ? (
-              <TextInput
-                style={styles.inputBox}
-                value={voiceTranscript}
-                onChangeText={setVoiceTranscript}
-                placeholder="Paste or type voice transcript..."
-                multiline
-              />
+              <View style={styles.voiceCaptureContainer}>
+                <TouchableOpacity
+                  style={[styles.voiceRecordButton, isRecordingVoice && styles.voiceRecordButtonActive]}
+                  onPress={isRecordingVoice ? stopVoiceRecording : startVoiceRecording}
+                >
+                  <Text style={styles.voiceRecordButtonText}>
+                    {isRecordingVoice ? 'Stop Recording' : 'Start Recording'}
+                  </Text>
+                </TouchableOpacity>
+
+                <Text style={styles.voiceStatusText}>
+                  {isRecordingVoice
+                    ? 'Recording... Speak your meal details clearly.'
+                    : voiceRecordingUri
+                      ? `Voice captured (${formatRecordingDuration(voiceDurationMs)}). Add a short transcript below.`
+                      : 'Tap Start Recording to capture your voice note.'}
+                </Text>
+
+                <TextInput
+                  style={styles.inputBox}
+                  value={voiceTranscript}
+                  onChangeText={setVoiceTranscript}
+                  placeholder="Type what you said (e.g. Waakye with fish and stew, one plate)"
+                  multiline
+                />
+              </View>
             ) : null}
 
             {inputMode === 'manual' ? (
@@ -770,6 +860,30 @@ const styles = StyleSheet.create({
     minHeight: scale(90),
     textAlignVertical: 'top',
     color: Colors.text.primary,
+  },
+  voiceCaptureContainer: {
+    marginTop: Spacing.md,
+    width: '100%',
+  },
+  voiceRecordButton: {
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.lg,
+    paddingVertical: Spacing.md,
+    alignItems: 'center',
+  },
+  voiceRecordButtonActive: {
+    backgroundColor: Colors.error,
+  },
+  voiceRecordButtonText: {
+    color: Colors.white,
+    fontWeight: '700',
+    fontSize: Typography.sizes.bodySmall,
+  },
+  voiceStatusText: {
+    marginTop: Spacing.sm,
+    color: Colors.text.secondary,
+    fontSize: Typography.sizes.bodySmall,
+    textAlign: 'center',
   },
   detectedCard: {
     marginTop: Spacing.lg,

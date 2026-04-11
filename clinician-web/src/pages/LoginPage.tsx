@@ -1,14 +1,64 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import axios from 'axios'
 import { useAuth } from '../hooks'
 import { AuthCredentials } from '../types'
+
+const getReadableErrorMessage = (error: unknown): string => {
+  if (axios.isAxiosError(error)) {
+    const detail = error.response?.data?.detail
+
+    if (typeof detail === 'string' && detail.trim()) {
+      return detail
+    }
+
+    if (Array.isArray(detail)) {
+      const messages = detail
+        .map(item => {
+          if (typeof item === 'string') {
+            return item
+          }
+
+          if (item && typeof item === 'object') {
+            const message = 'msg' in item ? String(item.msg || '') : ''
+            const location = Array.isArray((item as { loc?: unknown[] }).loc)
+              ? ` (${(item as { loc?: unknown[] }).loc?.join('.')})`
+              : ''
+            return `${message}${location}`.trim()
+          }
+
+          return ''
+        })
+        .filter(Boolean)
+
+      if (messages.length > 0) {
+        return messages.join('. ')
+      }
+    }
+
+    const message = error.message.trim()
+    if (message.toLowerCase().includes('network error')) {
+      return 'Unable to reach the server. Check that the backend is running and the API URL is correct.'
+    }
+
+    if (message) {
+      return message
+    }
+  }
+
+  if (error instanceof Error && error.message.trim()) {
+    return error.message
+  }
+
+  return 'Login failed. Please try again.'
+}
 
 export function LoginPage() {
   const navigate = useNavigate()
   const { login, isLoading } = useAuth()
   const [formData, setFormData] = useState<AuthCredentials>({
-    email: 'admin@caresync.com',
-    password: 'Admin@12345',
+    email: '',
+    password: '',
   })
   const [error, setError] = useState<string | null>(null)
 
@@ -31,9 +81,8 @@ export function LoginPage() {
 
     try {
       await login(formData)
-      navigate('/')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed')
+      setError(getReadableErrorMessage(err))
     }
   }
 
@@ -63,7 +112,7 @@ export function LoginPage() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} noValidate className="space-y-4">
             {/* Email Field */}
             <div>
               <label htmlFor="email" className="block text-sm text-gray-300 mb-2">
@@ -77,7 +126,7 @@ export function LoginPage() {
                 onChange={handleChange}
                 disabled={isLoading}
                 className="w-full px-4 py-3 bg-slate-800/50 border border-slate-600/50 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-transparent disabled:opacity-50 transition"
-                placeholder="admin@caresync.com"
+                placeholder="example@email.com"
               />
             </div>
 
@@ -94,7 +143,7 @@ export function LoginPage() {
                 onChange={handleChange}
                 disabled={isLoading}
                 className="w-full px-4 py-3 bg-slate-800/50 border border-slate-600/50 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-transparent disabled:opacity-50 transition"
-                placeholder="••••••••"
+              
               />
             </div>
 
@@ -118,7 +167,7 @@ export function LoginPage() {
           {/* Security Badge */}
           <div className="mt-6 text-center text-xs text-gray-400 flex items-center justify-center gap-2">
             <span>🔒</span>
-            <span>256-bit encrypted · HIPAA compliant</span>
+            <span>256-bit encrypted </span>
           </div>
         </div>
       </div>
@@ -152,7 +201,7 @@ export function LoginPage() {
             <div className="flex items-start gap-3">
               <div className="text-xl">📊</div>
               <div className="text-left">
-                <p className="font-semibold text-base">14-day health forecasts</p>
+                <p className="font-semibold text-base">7-day ,14-day and 30-day health Summaries</p>
               </div>
             </div>
             <div className="flex items-start gap-3">

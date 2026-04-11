@@ -47,9 +47,9 @@ class Settings(BaseSettings):
     )
 
     # RAG & LLM Configuration
-    llm_provider: str = Field(default="openai", alias="LLM_PROVIDER")  # "openai" or "anthropic"
+    llm_provider: str = Field(default="gemini", alias="LLM_PROVIDER")  # "gemini" or "openai"
     llm_api_key: str = Field(default="", alias="LLM_API_KEY")
-    llm_model: str = Field(default="gpt-4", alias="LLM_MODEL")
+    llm_model: str = Field(default="gemini-2.5-flash", alias="LLM_MODEL")
     llm_temperature: float = Field(default=0.7, alias="LLM_TEMPERATURE")
     embedding_model: str = Field(default="all-MiniLM-L6-v2", alias="EMBEDDING_MODEL")  # HuggingFace model
     vector_db_dimension: int = Field(default=384, alias="VECTOR_DB_DIMENSION")

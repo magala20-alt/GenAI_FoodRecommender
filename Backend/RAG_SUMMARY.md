@@ -6,7 +6,7 @@ You now have a **production-ready RAG system** that integrates your prompts with
 
 - ✅ Vector embeddings (sentence-transformers)
 - ✅ Vector database (PostgreSQL + pgvector)
-- ✅ LLM integration (OpenAI/Claude)
+- ✅ LLM integration (Gemini/OpenAI)
 - ✅ Dynamic prompt loading (no code changes needed)
 - ✅ Context assembly and retrieval
 - ✅ Example API endpoints
@@ -25,7 +25,7 @@ YOUR PROMPTS (Backend/prompts/)
 
 LLM SERVICE
     ↓
-├─ LLMClient → OpenAI/Claude wrapper
+├─ LLMClient → Gemini/OpenAI wrapper
 ├─ EmbeddingService → Text to vectors
 └─ VectorStore → Similarity search in pgvector
 
@@ -81,7 +81,7 @@ API LAYER
                       │
         ┌─────────────▼────────────────┐
         │ 5. LLM CLIENT                │
-        │ Call OpenAI/Claude API       │
+        │ Call Gemini/OpenAI API       │
         │ Send complete prompt         │
         └─────────────┬────────────────┘
                       │
@@ -183,9 +183,9 @@ async def recommend(query: str, db: Session = Depends(get_db)):
 
 ```bash
 # LLM Provider
-LLM_PROVIDER=openai              # or "anthropic"
-LLM_API_KEY=sk-...              # Your API key
-LLM_MODEL=gpt-4                 # or gpt-3.5-turbo, claude-3-sonnet...
+LLM_PROVIDER=gemini
+LLM_API_KEY=AIza-your-google-ai-key
+LLM_MODEL=gemini-2.5-flash
 LLM_TEMPERATURE=0.7             # 0-1 (lower = more focused)
 
 # Embeddings
@@ -234,7 +234,7 @@ See `rag_example.py` for request/response formats!
 1. **Modular Components** - Each piece is testable independently
 2. **Dynamic Prompts** - Update prompts without redeploying code
 3. **Database-Backed Search** - pgvector for efficient vector search
-4. **Provider Agnostic** - Swap OpenAI/Claude easily
+4. **Provider Agnostic** - Swap Gemini/OpenAI easily
 5. **Source Attribution** - Always know where recommendations came from
 
 ### **Why These Technologies?**
@@ -242,7 +242,7 @@ See `rag_example.py` for request/response formats!
 - **SentenceTransformers** - Fast, accurate embeddings (384-dim)
 - **pgvector** - Efficient vector search in PostgreSQL
 - **SQLAlchemy** - Clean DB integration
-- **OpenAI/Anthropic** - Best LLMs available
+- **Gemini/OpenAI** - Flexible model support
 
 ---
 
@@ -357,6 +357,7 @@ If you want to understand RAG deeper:
 - **Embedding Models**: https://www.sbert.net/
 - **pgvector Tutorial**: https://github.com/pgvector/pgvector
 - **RAG Research**: https://arxiv.org/abs/2005.11401
+- **Google Gemini API**: https://ai.google.dev/
 - **OpenAI API**: https://platform.openai.com/docs/
 
 ---

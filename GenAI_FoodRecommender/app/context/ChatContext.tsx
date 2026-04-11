@@ -29,41 +29,22 @@ export function ChatProvider({ children }: ChatProviderProps) {
     setMessages(prev => [...prev, userMessage])
 
     try {
-      // Try streaming first
       setIsStreaming(true)
-      let fullResponse = ''
+      const response = await chatService.sendMessageDetailed(messageText)
 
-      for await (const chunk of chatService.streamMessage(messageText)) {
-        fullResponse += chunk
-      }
-
-      // Add assistant message
       const assistantMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: fullResponse,
+        content: response.text,
         timestamp: new Date().toISOString(),
+        retrievedMeals: response.retrievedMeals,
       }
 
       setMessages(prev => [...prev, assistantMessage])
     } catch (err) {
-      // Fallback to non-streaming
-      try {
-        const response = await chatService.sendMessage(messageText)
-
-        const assistantMessage: ChatMessage = {
-          id: (Date.now() + 1).toString(),
-          role: 'assistant',
-          content: response,
-          timestamp: new Date().toISOString(),
-        }
-
-        setMessages(prev => [...prev, assistantMessage])
-      } catch (fallbackErr) {
-        const message = fallbackErr instanceof Error ? fallbackErr.message : 'Failed to send message'
-        setError(message)
-        console.error('Send message error:', fallbackErr)
-      }
+      const message = err instanceof Error ? err.message : 'Failed to send message'
+      setError(message)
+      console.error('Send message error:', err)
     } finally {
       setIsLoading(false)
       setIsStreaming(false)

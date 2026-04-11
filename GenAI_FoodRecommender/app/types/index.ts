@@ -104,6 +104,20 @@ export interface ChatMessage {
   content: string
   timestamp: string
   sourcePatientId?: string
+  retrievedMeals?: ChatRecommendedMeal[]
+}
+
+export interface ChatRecommendedMeal {
+  mealId?: string
+  name: string
+  description?: string
+  cuisine?: string
+  calories?: number
+  proteinG?: number
+  carbsG?: number
+  fatG?: number
+  instructions?: string
+  similarityScore?: number
 }
 
 export interface ChatStreamEvent {

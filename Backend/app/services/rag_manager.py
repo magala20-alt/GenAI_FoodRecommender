@@ -4,6 +4,7 @@ Handles retrieval, augmentation, and generation workflow.
 """
 
 import json
+import re
 from typing import List, Dict, Any, Optional
 import importlib.util
 from pathlib import Path
@@ -75,12 +76,18 @@ class RAGManager:
             retrieved_meals.extend(cuisine_meals)
         
         # Step 3: Get all meals if needed as fallback
+        should_include_all_meals = include_all_meals or len(retrieved_meals) < 2
         all_meals = None
-        if include_all_meals:
+        if should_include_all_meals:
             all_meals = VectorStore.get_all_meals_for_context(self.db, limit=50)
         
         # Step 4: Load prompts and examples
-        system_prompt = PromptRegistry.get_meal_prompt("search")
+        system_prompt = self._render_meal_system_prompt(
+            PromptRegistry.get_meal_prompt("search"),
+            user_preferences=user_preferences,
+            retrieved_meals=retrieved_meals,
+            all_meals=all_meals,
+        )
         examples = None
         if include_examples:
             examples = self._load_meal_examples()
@@ -92,20 +99,155 @@ class RAGManager:
             retrieved_meals=retrieved_meals,
             user_preferences=user_preferences,
             examples=examples,
-            include_all_meals=include_all_meals,
+            include_all_meals=should_include_all_meals,
             all_available_meals=all_meals
         )
         
-        # Step 6: Call LLM
+        # Step 6: Force a strict response schema for consistent UI rendering.
+        messages.append(
+            {
+                "role": "user",
+                "content": (
+                    "Return strict JSON only with keys: summary (string), suggested_meals (array). "
+                    "Each item in suggested_meals must include: name, description, cuisine, calories, "
+                    "protein_g, carbs_g, fat_g, instructions. "
+                    "Do not include markdown or any additional keys."
+                ),
+            }
+        )
+
+        # Step 7: Call LLM and parse structured meal suggestions.
         response = self.llm_client.call(messages)
-        
-        # Step 7: Format and return result with sources
+        parsed = self._extract_json_object(response)
+
+        suggested_meals_raw = parsed.get("suggested_meals")
+        suggested_meals: list[dict[str, Any]] = []
+        if isinstance(suggested_meals_raw, list):
+            for item in suggested_meals_raw:
+                if not isinstance(item, dict):
+                    continue
+
+                name = str(item.get("name") or "").strip()
+                if not name:
+                    continue
+
+                suggested_meals.append(
+                    {
+                        "name": name,
+                        "description": str(item.get("description") or "").strip() or None,
+                        "cuisine": str(item.get("cuisine") or "").strip() or None,
+                        "calories": item.get("calories"),
+                        "protein_g": item.get("protein_g"),
+                        "carbs_g": item.get("carbs_g"),
+                        "fat_g": item.get("fat_g"),
+                        "instructions": str(item.get("instructions") or "").strip() or None,
+                    }
+                )
+
+        if not suggested_meals:
+            # Preserve UI meal cards even when LLM returns empty/malformed structured output.
+            suggested_meals = self._fallback_meals_from_retrieval(retrieved_meals, all_meals)
+
+        summary = ""
+        for key in ("summary", "sumary", "sumamary", "summmary", "overview"):
+            value = parsed.get(key)
+            if isinstance(value, str) and value.strip():
+                summary = value.strip()
+                break
+            if isinstance(value, list):
+                list_text = " ".join(str(item).strip() for item in value if str(item).strip())
+                if list_text:
+                    summary = list_text
+                    break
+        if not summary:
+            if suggested_meals:
+                summary = "Here are meal suggestions tailored to your request."
+            else:
+                summary = str(response or "").strip() or "I could not generate a structured recommendation right now."
+
+        if self._looks_like_structured_empty_response(summary) or self._looks_like_json_blob(summary):
+            summary = "I could not find exact cuisine matches yet, but here are the closest meal options and alternatives."
+
+        # Step 8: Return only LLM-curated suggestions for client templates.
         return {
-            "response": response,
-            "retrieved_meals": retrieved_meals,
-            "sources": [meal.get("name", "Unknown") for meal in retrieved_meals],
-            "num_meals_retrieved": len(retrieved_meals)
+            "response": summary,
+            "retrieved_meals": suggested_meals,
+            "sources": [meal.get("name", "Unknown") for meal in suggested_meals],
+            "num_meals_retrieved": len(suggested_meals),
         }
+
+    def _fallback_meals_from_retrieval(
+        self,
+        retrieved_meals: List[Dict[str, Any]],
+        all_meals: Optional[List[Dict[str, Any]]] = None,
+    ) -> list[dict[str, Any]]:
+        meals_source = retrieved_meals if retrieved_meals else (all_meals or [])
+        fallback: list[dict[str, Any]] = []
+        for meal in meals_source:
+            if not isinstance(meal, dict):
+                continue
+            name = str(meal.get("name") or "").strip()
+            if not name:
+                continue
+            fallback.append(
+                {
+                    "name": name,
+                    "description": str(meal.get("description") or "").strip() or None,
+                    "cuisine": str(meal.get("cuisine") or "").strip() or None,
+                    "calories": meal.get("calories"),
+                    "protein_g": meal.get("protein_g"),
+                    "carbs_g": meal.get("carbs_g"),
+                    "fat_g": meal.get("fat_g"),
+                    "instructions": str(meal.get("instructions") or "").strip() or None,
+                }
+            )
+            if len(fallback) >= 6:
+                break
+        return fallback
+
+    def _looks_like_structured_empty_response(self, text: str) -> bool:
+        value = (text or "").strip().lower()
+        if not value:
+            return False
+        has_summary = "summary" in value
+        has_meals_key = "suggested_meals" in value or "suggestedmeals" in value
+        has_empty_arrays = len(re.findall(r"\[\s*\]", value)) >= 1
+        return has_summary and has_meals_key and has_empty_arrays
+
+    def _looks_like_json_blob(self, text: str) -> bool:
+        value = (text or "").strip().lower()
+        if not value:
+            return False
+        if value.startswith("{") and value.endswith("}"):
+            return True
+        return "\"summary\"" in value and "suggested_meals" in value
+
+    def _render_meal_system_prompt(
+        self,
+        prompt_template: str,
+        user_preferences: Optional[Dict[str, Any]],
+        retrieved_meals: List[Dict[str, Any]],
+        all_meals: Optional[List[Dict[str, Any]]] = None,
+    ) -> str:
+        preferences = user_preferences or {}
+        meals_source = all_meals if all_meals else retrieved_meals
+        meal_names = [str(meal.get("name") or "").strip() for meal in meals_source if isinstance(meal, dict)]
+        meal_names = [name for name in meal_names if name]
+        meals_preview = ", ".join(meal_names[:40]) if meal_names else "No close match from vector search"
+
+        replacements = {
+            "meals_list": meals_preview,
+            "goal": str(preferences.get("goal") or "not specified"),
+            "diet": str(preferences.get("dietary_preference") or "not specified"),
+            "cuisine": str(preferences.get("cuisine_preference") or "not specified"),
+            "dietary_constraints": str(preferences.get("dietary_constraints") or "none reported"),
+        }
+
+        try:
+            return prompt_template.format(**replacements)
+        except Exception:
+            # Fall back to raw template if formatting fails unexpectedly.
+            return prompt_template
     
     def analyze_patient(
         self,
@@ -237,16 +379,23 @@ class RAGManager:
     def _extract_json_object(self, raw_text: str) -> Dict[str, Any]:
         if not raw_text:
             return {}
+        cleaned = raw_text.strip()
+        if cleaned.startswith("```"):
+            cleaned = cleaned.strip("`")
+            if cleaned.lower().startswith("json"):
+                cleaned = cleaned[4:].strip()
+        if cleaned.lower().startswith("json"):
+            cleaned = cleaned[4:].strip()
         try:
-            parsed = json.loads(raw_text)
+            parsed = json.loads(cleaned)
             return parsed if isinstance(parsed, dict) else {}
         except json.JSONDecodeError:
-            start = raw_text.find("{")
-            end = raw_text.rfind("}")
+            start = cleaned.find("{")
+            end = cleaned.rfind("}")
             if start == -1 or end == -1 or end <= start:
                 return {}
             try:
-                parsed = json.loads(raw_text[start : end + 1])
+                parsed = json.loads(cleaned[start : end + 1])
                 return parsed if isinstance(parsed, dict) else {}
             except json.JSONDecodeError:
                 return {}

@@ -226,8 +226,8 @@ def score_patient_risk_on_login(db: Session, user: User, threshold: float = 0.3)
             logger.warning("Loaded model does not expose predict_proba/predict methods")
             return None
 
-        onboarding.baseline_risk_score = risk_score
-        onboarding.diagnosed_diabetes = risk_score >= threshold
+        onboarding.baseline_risk_score = risk_score #replacing predicted risk score with actual risk score 
+        onboarding.diagnosed_diabetes = risk_score >= threshold # new risk score
         onboarding.trajectory_type = "highRisk" if risk_score >= threshold else "lowRisk"
 
         db.add(onboarding)

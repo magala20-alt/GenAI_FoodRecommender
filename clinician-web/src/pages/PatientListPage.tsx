@@ -11,6 +11,7 @@ const navMain = ['Dashboard', 'Patients', 'AI Summaries', 'Alerts']
 const navTools = ['Schedule']
 const aiQuickFilters = ['High risk only', 'Rising BP', 'Missed meals 3+ days', 'Weight gain projected', 'Low adherence']
 
+// AI Prompt Map
 const aiPromptMap: Record<string, string> = {
   'High risk only': 'Show high-risk patients only',
   'Rising BP': 'Show patients with rising blood pressure this week',
@@ -19,6 +20,7 @@ const aiPromptMap: Record<string, string> = {
   'Low adherence': 'Show patients with low adherence below target',
 }
 
+// side bar navigation
 const navIcons: Record<string, string> = {
   Dashboard: '⊞',
   Patients: '👥',
@@ -54,6 +56,7 @@ function gradientFromId(id: string) {
   return gradients[idx]
 }
 
+// schema for the list
 export function PatientListPage() {
   const rowsPerPage = 8
   const navigate = useNavigate()
@@ -160,6 +163,7 @@ export function PatientListPage() {
     if (item === 'Alerts') navigate('/alerts')
   }
 
+  // clear filter
   const clearAIFilter = () => {
     setAiQuery('')
     setAiFilteredIds(null)
@@ -493,6 +497,7 @@ export function PatientListPage() {
   )
 }
 
+// pagination UI
 function FilterChip({
   label,
   selected,

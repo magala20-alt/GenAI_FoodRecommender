@@ -88,10 +88,26 @@ export function OnboardingSetupScreen({ onComplete }: OnboardingSetupScreenProps
 
   const toggleCuisine = (cuisine: string) => {
     const current = data.cuisinePreferences || []
-    if (current.includes(cuisine)) {
-      updateData('cuisinePreferences', current.filter(c => c !== cuisine))
+    const existingIndex = current.findIndex(c => c.toLowerCase() === cuisine.toLowerCase())
+
+    if (existingIndex >= 0) {
+      updateData('cuisinePreferences', current.filter((_, index) => index !== existingIndex))
     } else {
       updateData('cuisinePreferences', [...current, cuisine])
+    }
+  }
+
+  const addCustomCuisine = (cuisine: string) => {
+    const normalizedCuisine = cuisine.trim()
+    if (!normalizedCuisine) {
+      return
+    }
+
+    const current = data.cuisinePreferences || []
+    const alreadyAdded = current.some(c => c.toLowerCase() === normalizedCuisine.toLowerCase())
+
+    if (!alreadyAdded) {
+      updateData('cuisinePreferences', [...current, normalizedCuisine])
     }
   }
 
@@ -161,6 +177,7 @@ export function OnboardingSetupScreen({ onComplete }: OnboardingSetupScreenProps
               errors={errors}
               cuisineOptions={cuisineOptions}
               onToggleCuisine={toggleCuisine}
+              onAddCustomCuisine={addCustomCuisine}
             />
           )}
         </View>
@@ -206,6 +223,7 @@ export function OnboardingSetupScreen({ onComplete }: OnboardingSetupScreenProps
 function Step1Content({ data, errors, onUpdate }: any) {
   const password = data.newPassword || ''
   const strength = getPasswordStrength(password)
+  const [showPasswordTooltip, setShowPasswordTooltip] = useState(false)
 
   return (
     <>
@@ -221,6 +239,26 @@ function Step1Content({ data, errors, onUpdate }: any) {
         secureTextEntry
         style={{ marginBottom: Spacing.lg }}
       />
+
+      <TouchableOpacity
+        style={styles.passwordTooltipTrigger}
+        onPress={() => setShowPasswordTooltip(!showPasswordTooltip)}
+        activeOpacity={0.8}
+      >
+        <Text style={styles.passwordTooltipTriggerText}>
+          {showPasswordTooltip ? 'Hide password requirements' : 'Show password requirements'}
+        </Text>
+      </TouchableOpacity>
+
+      {showPasswordTooltip && (
+        <View style={styles.passwordTooltipBox}>
+          <Text style={styles.passwordTooltipTitle}>Strong password checklist:</Text>
+          <Text style={styles.passwordTooltipItem}>- At least 8 characters</Text>
+          <Text style={styles.passwordTooltipItem}>- At least 1 uppercase letter (A-Z)</Text>
+          <Text style={styles.passwordTooltipItem}>- At least 1 lowercase letter (a-z)</Text>
+          <Text style={styles.passwordTooltipItem}>- At least 1 number (0-9)</Text>
+        </View>
+      )}
 
       {password && (
         <View style={styles.strengthIndicator}>
@@ -392,14 +430,50 @@ function Step3Content({ data, errors, onUpdate }: any) {
 }
 
 // Step 4: Cuisine Preferences
-function Step4Content({ data, errors, cuisineOptions, onToggleCuisine }: any) {
+function Step4Content({ data, errors, cuisineOptions, onToggleCuisine, onAddCustomCuisine }: any) {
+  const [showCustomCuisineInput, setShowCustomCuisineInput] = useState(false)
+  const [customCuisine, setCustomCuisine] = useState('')
+  const [customCuisineError, setCustomCuisineError] = useState('')
+  const selectedCuisines = data.cuisinePreferences || []
+
+  const allCuisineOptions = [
+    ...cuisineOptions,
+    ...selectedCuisines.filter(
+      (selectedCuisine: string) =>
+        !cuisineOptions.some((option: string) => option.toLowerCase() === selectedCuisine.toLowerCase()),
+    ),
+  ]
+
+  const handleAddCustomCuisine = () => {
+    const normalizedCuisine = customCuisine.trim()
+
+    if (!normalizedCuisine) {
+      setCustomCuisineError('Enter a cuisine name')
+      return
+    }
+
+    const alreadyAdded = selectedCuisines.some(
+      (selectedCuisine: string) => selectedCuisine.toLowerCase() === normalizedCuisine.toLowerCase(),
+    )
+
+    if (alreadyAdded) {
+      setCustomCuisineError('Cuisine already added')
+      return
+    }
+
+    onAddCustomCuisine(normalizedCuisine)
+    setCustomCuisine('')
+    setCustomCuisineError('')
+    setShowCustomCuisineInput(false)
+  }
+
   return (
     <>
       <Text style={styles.stepTitle}>Cuisine Preferences</Text>
       <Text style={styles.stepDescription}>Which cuisines do you prefer?</Text>
 
       <View style={styles.cuisineChips}>
-        {cuisineOptions.map((cuisine: string) => (
+        {allCuisineOptions.map((cuisine: string) => (
           <TouchableOpacity
             key={cuisine}
             style={[
@@ -418,7 +492,42 @@ function Step4Content({ data, errors, cuisineOptions, onToggleCuisine }: any) {
             </Text>
           </TouchableOpacity>
         ))}
+
+        <TouchableOpacity
+          style={[styles.cuisineChip, styles.customCuisineTriggerChip]}
+          onPress={() => {
+            setShowCustomCuisineInput(!showCustomCuisineInput)
+            setCustomCuisineError('')
+          }}
+        >
+          <Text style={[styles.cuisineChipText, styles.customCuisineTriggerText]}>+ Custom</Text>
+        </TouchableOpacity>
       </View>
+
+      {showCustomCuisineInput && (
+        <View style={styles.customCuisineInputContainer}>
+          <TextInput
+            label="Custom Cuisine"
+            placeholder="e.g., Ethiopian"
+            value={customCuisine}
+            onChangeText={(text) => {
+              setCustomCuisine(text)
+              if (customCuisineError) {
+                setCustomCuisineError('')
+              }
+            }}
+            style={{ marginBottom: Spacing.md }}
+          />
+
+          {!!customCuisineError && <Text style={styles.customCuisineErrorText}>{customCuisineError}</Text>}
+
+          <Button
+            label="Add Cuisine"
+            onPress={handleAddCustomCuisine}
+            style={styles.customCuisineAddButton}
+          />
+        </View>
+      )}
     </>
   )
 }
@@ -643,9 +752,58 @@ const styles = StyleSheet.create({
   cuisineChipTextActive: {
     color: Colors.white,
   },
+  customCuisineTriggerChip: {
+    borderStyle: 'dashed',
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primaryTint,
+  },
+  customCuisineTriggerText: {
+    color: Colors.primary,
+    fontWeight: '700',
+  },
+  customCuisineInputContainer: {
+    marginTop: Spacing.lg,
+  },
+  customCuisineErrorText: {
+    fontSize: Typography.sizes.caption,
+    color: Colors.danger,
+    marginBottom: Spacing.sm,
+  },
+  customCuisineAddButton: {
+    alignSelf: 'flex-start',
+  },
 
   strengthIndicator: {
     marginVertical: Spacing.md,
+  },
+  passwordTooltipTrigger: {
+    alignSelf: 'flex-start',
+    marginTop: -Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  passwordTooltipTriggerText: {
+    color: Colors.primary,
+    fontSize: Typography.sizes.caption,
+    fontWeight: '600',
+  },
+  passwordTooltipBox: {
+    backgroundColor: Colors.surface,
+    borderColor: Colors.primaryTint,
+    borderWidth: 1,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+  },
+  passwordTooltipTitle: {
+    color: Colors.text.primary,
+    fontSize: Typography.sizes.bodySmall,
+    fontWeight: '700',
+    marginBottom: Spacing.xs,
+  },
+  passwordTooltipItem: {
+    color: Colors.text.secondary,
+    fontSize: Typography.sizes.caption,
+    marginBottom: Spacing.xs,
   },
   strengthBar: {
     height: scale(4),

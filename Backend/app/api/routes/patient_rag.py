@@ -21,10 +21,13 @@ from app.models.user_metrics import UserMetrics
 from app.models.user import User
 from app.models.user import UserRole
 from app.schemas.patient_rag import (
+    ApprovalDecisionRequest,
+    ApprovalDecisionResponse,
     ClinicianPatientFilterMatch,
     ClinicianPatientFilterRequest,
     ClinicianPatientFilterResponse,
     EmbeddingGenerateResponse,
+    ListPendingSuggestionsResponse,
     MealPlanMeal,
     MealSnapshotExtractRequest,
     MealSnapshotExtractResponse,
@@ -41,11 +44,14 @@ from app.schemas.patient_rag import (
     PatientVitalsLogCreateResponse,
     PatientVitalsLogHistoryResponse,
     PatientVitalsLogItem,
+    PromoteMealRequest,
+    PromoteMealResponse,
 )
 from app.services.llm_client import get_llm_client
 from app.services.meal_import_service import import_meals_from_csv
 from app.services.prompt_registry import PromptRegistry
 from app.services.rag_manager import get_rag_manager
+from app.services.suggested_meal_service import SuggestedMealService
 from app.services.vector_store import VectorStore
 
 
@@ -141,6 +147,47 @@ def _normalize_meal_type(value: str | None) -> str | None:
     if normalized.startswith("snack"):
         return "Snack"
     return value.strip().title()
+
+
+def _fallback_snapshot_from_text(
+    transcript: str | None,
+    meal_description: str | None,
+    meal_type_hint: str | None,
+) -> MealSnapshotExtractResponse:
+    combined = f"{transcript or ''} {meal_description or ''}".strip()
+    combined_lower = combined.lower()
+
+    estimated_calories = 420
+    tags: list[str] = []
+
+    if any(token in combined_lower for token in ["salad", "vegetable", "veggie"]):
+        estimated_calories = 260
+        tags.append("vegetable")
+    if any(token in combined_lower for token in ["rice", "pasta", "noodles", "yam", "potato"]):
+        estimated_calories = max(estimated_calories, 520)
+        tags.append("carb-heavy")
+    if any(token in combined_lower for token in ["chicken", "fish", "egg", "beef", "goat", "beans"]):
+        estimated_calories = max(estimated_calories, 460)
+        tags.append("protein")
+    if any(token in combined_lower for token in ["fried", "fries", "oil", "butter", "sauce"]):
+        estimated_calories = max(estimated_calories, 620)
+        tags.append("high-fat")
+    if any(token in combined_lower for token in ["fruit", "apple", "banana", "orange"]):
+        estimated_calories = min(estimated_calories, 220)
+        tags.append("fruit")
+
+    normalized_tags = list(dict.fromkeys(tags))[:6]
+    meal_name = meal_description or transcript or "Meal"
+    meal_name = meal_name.strip()[:80] or "Meal"
+
+    return MealSnapshotExtractResponse(
+        mealName=meal_name,
+        estimatedCalories=estimated_calories,
+        confidence=0.35,
+        reasoning="Estimated using fallback meal parser because AI extraction was temporarily unavailable.",
+        tags=normalized_tags,
+        suggestedMealType=_normalize_meal_type(meal_type_hint),
+    )
 
 
 def _infer_meal_type_from_time(consumed_at: datetime | None) -> str:
@@ -278,22 +325,31 @@ def patient_recommend_meals(
     except Exception as exc:
         logger.exception("Meal recommendation RAG failed; falling back to text search", exc_info=exc)
         result = {
-            "response": "I could not generate a full AI recommendation right now, so here are the closest matching meals from the menu.",
+            "response": "I could not generate a full AI recommendation right now. Please try again in a moment.",
             "retrieved_meals": [],
             "sources": [],
             "num_meals_retrieved": 0,
         }
 
-    if not result.get("retrieved_meals"):
-        fallback = VectorStore.search_meals_by_text(db=db, query_text=payload.query, limit=payload.k_retrieved)
-        if not fallback:
-            fallback = VectorStore.get_all_meals_for_context(db=db, limit=payload.k_retrieved)
-        result["retrieved_meals"] = fallback
-        result["sources"] = [meal.get("name", "Unknown") for meal in fallback]
-        result["num_meals_retrieved"] = len(fallback)
-
     if not str(result.get("response") or "").strip():
         result["response"] = "Here are some meals that fit your request based on the current menu."
+
+    # Extract and store any [New: not in base list] meals suggested by the LLM
+    response_text = str(result.get("response") or "")
+    if "[New:" in response_text or "[New]" in response_text:
+        try:
+            suggestions = SuggestedMealService.extract_new_meal_suggestions(
+                llm_response=response_text,
+                source_query=payload.query,
+                user_id=current_user.id,
+                model_name="gemini-2.5-flash",
+                confidence=0.7,
+            )
+            for suggestion in suggestions:
+                SuggestedMealService.store_suggested_meal(db, suggestion)
+            logger.info(f"Stored {len(suggestions)} suggested meals from recommendation response")
+        except Exception as exc:
+            logger.exception("Failed to extract/store suggested meals", exc_info=exc)
 
     return PatientMealRecommendationResponse(
         response=result["response"],
@@ -311,7 +367,7 @@ def patient_chat_suggestions() -> list[str]:
 @router.post("/meal-log/extract", response_model=MealSnapshotExtractResponse)
 def patient_extract_meal_snapshot(
     payload: MealSnapshotExtractRequest,
-    _: User = Depends(get_current_patient),
+    current_user: User = Depends(get_current_patient),
 ) -> MealSnapshotExtractResponse:
     if not payload.image_data_url and not payload.transcript and not payload.meal_description:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Provide an image, voice transcript, or manual description")
@@ -341,23 +397,61 @@ def patient_extract_meal_snapshot(
                 ]
             )
             llm_raw = response or ""
-        except Exception:
+        except Exception as exc:
+            logger.exception(
+                "Meal snapshot image extraction failed for user=%s mode=%s",
+                current_user.id,
+                payload.input_mode,
+                exc_info=exc,
+            )
             llm_raw = ""
 
     if not llm_raw:
-        llm_client = get_llm_client()
-        llm_raw = llm_client.call(
-            messages=[
-                {
-                    "role": "user",
-                    "content": f"{system_prompt}\n\n{contextual_input}",
-                }
-            ]
-        )
+        try:
+            llm_client = get_llm_client()
+            llm_raw = llm_client.call(
+                messages=[
+                    {
+                        "role": "user",
+                        "content": f"{system_prompt}\n\n{contextual_input}",
+                    }
+                ]
+            )
+        except Exception as exc:
+            logger.exception(
+                "Meal snapshot text extraction failed for user=%s mode=%s",
+                current_user.id,
+                payload.input_mode,
+                exc_info=exc,
+            )
+            return _fallback_snapshot_from_text(
+                transcript=payload.transcript,
+                meal_description=payload.meal_description,
+                meal_type_hint=payload.meal_type,
+            )
 
     parsed = _extract_json_object(llm_raw)
+    if not parsed:
+        logger.warning(
+            "Meal snapshot parser produced empty payload for user=%s mode=%s",
+            current_user.id,
+            payload.input_mode,
+        )
+        return _fallback_snapshot_from_text(
+            transcript=payload.transcript,
+            meal_description=payload.meal_description,
+            meal_type_hint=payload.meal_type,
+        )
+
     meal_name = str(parsed.get("meal_name") or payload.meal_description or payload.transcript or "Meal").strip()
     estimated_calories = max(0, _to_int(parsed.get("estimated_calories"), 0))
+    if estimated_calories == 0:
+        estimated_calories = _fallback_snapshot_from_text(
+            transcript=payload.transcript,
+            meal_description=payload.meal_description,
+            meal_type_hint=payload.meal_type,
+        ).estimated_calories
+
     confidence = max(0.0, min(1.0, _to_float(parsed.get("confidence"), 0.6)))
     reasoning = str(parsed.get("reasoning") or "Estimated from the provided meal input.").strip()
     tags_value = parsed.get("tags") if isinstance(parsed.get("tags"), list) else []
@@ -677,4 +771,127 @@ def clinician_filter_patients(
         matchingPatientIds=matching_ids,
         matchedPatients=matched_patients,
         patientsSearched=len(available_patients),
+    )
+
+
+# =============================================================================
+# Suggested Meals Governance Endpoints
+# =============================================================================
+
+@router.get("/admin/suggested-meals", response_model=ListPendingSuggestionsResponse)
+def admin_list_suggested_meals(
+    skip: int = 0,
+    limit: int = 50,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin),
+) -> ListPendingSuggestionsResponse:
+    """List pending meal suggestions for review and approval."""
+    suggestions, total = SuggestedMealService.list_pending_suggestions(db, limit=limit, offset=skip)
+    stats = SuggestedMealService.get_governance_stats(db)
+    
+    items = []
+    for s in suggestions:
+        items.append({
+            "id": s.id,
+            "name": s.name,
+            "description": s.description,
+            "cuisine": s.cuisine,
+            "calories": s.calories,
+            "proteinG": s.protein_g,
+            "carbsG": s.carbs_g,
+            "fatG": s.fat_g,
+            "ingredients": s.ingredients,
+            "instructions": s.instructions,
+            "sourceQuery": s.source_query,
+            "modelName": s.model_name,
+            "llmConfidence": s.llm_confidence,
+            "status": s.status.value,
+            "approvalReason": s.approval_reason,
+            "createdAt": s.created_at.isoformat(),
+            "approvedAt": s.approved_at.isoformat() if s.approved_at else None,
+        })
+    
+    return ListPendingSuggestionsResponse(
+        total=stats["total"],
+        pending=stats["pending"],
+        approved=stats["approved"],
+        rejected=stats["rejected"],
+        promoted=stats["promoted"],
+        suggestions=items,
+    )
+
+
+@router.post("/admin/suggested-meals/{suggestion_id}/approve", response_model=ApprovalDecisionResponse)
+def admin_approve_suggestion(
+    suggestion_id: str,
+    payload: ApprovalDecisionRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin),
+) -> ApprovalDecisionResponse:
+    """Approve a pending meal suggestion."""
+    if payload.status != "approved":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Status must be 'approved'")
+    
+    suggestion = SuggestedMealService.approve_suggestion(
+        db, suggestion_id, current_user.id, reason=payload.reason
+    )
+    if not suggestion:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Suggestion not found")
+    
+    return ApprovalDecisionResponse(
+        id=suggestion.id,
+        status=suggestion.status.value,
+        reason=suggestion.approval_reason,
+        updatedAt=suggestion.updated_at.isoformat(),
+    )
+
+
+@router.post("/admin/suggested-meals/{suggestion_id}/reject", response_model=ApprovalDecisionResponse)
+def admin_reject_suggestion(
+    suggestion_id: str,
+    payload: ApprovalDecisionRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin),
+) -> ApprovalDecisionResponse:
+    """Reject a pending meal suggestion."""
+    if payload.status != "rejected":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Status must be 'rejected'")
+    
+    suggestion = SuggestedMealService.reject_suggestion(
+        db, suggestion_id, reason=payload.reason
+    )
+    if not suggestion:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Suggestion not found")
+    
+    return ApprovalDecisionResponse(
+        id=suggestion.id,
+        status=suggestion.status.value,
+        reason=suggestion.approval_reason,
+        updatedAt=suggestion.updated_at.isoformat(),
+    )
+
+
+@router.post("/admin/suggested-meals/{suggestion_id}/promote", response_model=PromoteMealResponse)
+def admin_promote_suggestion(
+    suggestion_id: str,
+    payload: PromoteMealRequest | None = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin),
+) -> PromoteMealResponse:
+    """Promote an approved suggestion to canonical meals table."""
+    prep_time = payload.prep_time_minutes if payload else None
+    cook_time = payload.cook_time_minutes if payload else None
+    
+    suggestion, new_meal = SuggestedMealService.promote_to_canonical(
+        db, suggestion_id, prep_time_minutes=prep_time, cook_time_minutes=cook_time
+    )
+    
+    if not suggestion or not new_meal:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Suggestion or promotion failed")
+    
+    return PromoteMealResponse(
+        suggestedMealId=suggestion.id,
+        promotedMealId=new_meal.id,
+        mealName=new_meal.name,
+        promotedAt=datetime.now(UTC).isoformat(),
     )

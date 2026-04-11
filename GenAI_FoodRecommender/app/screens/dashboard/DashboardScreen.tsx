@@ -15,7 +15,7 @@ import { Colors, Spacing, BorderRadius, Typography, moderateScale, scale, vertic
 import { useAuth, useMealPlan } from '../../hooks'
 import { Button } from '../../components/atoms'
 import { MealCard } from '../../components/molecules'
-import { formatDate } from '../../utils'
+import { formatDate, getGreeting } from '../../utils'
 import { mealLoggerService, MealLogItem, VitalLogItem } from '../../services/mealLoggerService'
 import { interventionService, InterventionMessage } from '../../services/interventionService'
 import { onboardingService } from '../../services/onboardingService'
@@ -304,7 +304,7 @@ export function DashboardScreen() {
       >
         <View style={[styles.topCard, { paddingTop: Math.max(insets.top * 0.15, Spacing.sm) }]}>
           <View style={styles.headerTopRow}>
-            <Text style={styles.greeting}>Good morning 👋</Text>
+            <Text style={styles.greeting}>{getGreeting()} 👋</Text>
             <Text style={styles.fireIcon}>🔥</Text>
           </View>
 

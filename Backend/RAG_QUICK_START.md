@@ -10,7 +10,7 @@ I've created a **complete RAG (Retrieval-Augmented Generation)** system with the
 2. **`app/services/vector_store.py`** - Manages vector similarity search (pgvector)
 3. **`app/services/prompt_registry.py`** - Loads prompts dynamically from filesystem
 4. **`app/services/context_builder.py`** - Assembles prompts with retrieved context
-5. **`app/services/llm_client.py`** - Unified interface for OpenAI/Claude
+5. **`app/services/llm_client.py`** - Unified interface for Gemini/OpenAI
 6. **`app/services/rag_manager.py`** - Main orchestrator (all pieces together)
 7. **`app/api/routes/rag_example.py`** - Example API endpoints
 8. **`RAG_IMPLEMENTATION_GUIDE.md`** - Complete architecture & setup guide
@@ -36,16 +36,17 @@ pip install -r requirements.txt
 Create `Backend/.env`:
 
 ```bash
-# Choose your LLM provider
-LLM_PROVIDER=openai
-LLM_API_KEY=sk-your-key-here      # Get from OpenAI
+# Gemini-first setup
+LLM_PROVIDER=gemini
+LLM_MODEL=gemini-2.5-flash
+LLM_API_KEY=AIza-your-google-ai-key
 
-# Or use Anthropic
-# LLM_PROVIDER=anthropic
-# LLM_API_KEY=sk-ant-your-key-here
-# LLM_MODEL=claude-3-sonnet-20240229
+# Optional provider-specific keys supported by llm_client.py
+# GEMINI_API_KEY=AIza-your-google-ai-key
+# GOOGLE_API_KEY=AIza-your-google-ai-key
 
-LLM_MODEL=gpt-4
+# Optional OpenAI fallback
+# OPENAI_API_KEY=sk-your-openai-key
 LLM_TEMPERATURE=0.7
 EMBEDDING_MODEL=all-MiniLM-L6-v2
 ```
@@ -125,7 +126,7 @@ Step 4: Build complete prompt:
         - User's question
         - Few-shot examples
             ↓
-Step 5: Send to LLM (OpenAI/Claude)
+Step 5: Send to LLM (Gemini/OpenAI)
             ↓
 Step 6: Return recommendations WITH SOURCES
 ```
@@ -148,7 +149,7 @@ Step 6: Return recommendations WITH SOURCES
 
 ### 🧠 **Generation** (LLM)
 
-- Calls OpenAI GPT-4 or Claude 3
+- Calls Gemini (default) or OpenAI
 - Returns complete recommendations
 - Attributes sources (which meals were used)
 
@@ -231,8 +232,8 @@ EMBEDDING_MODEL=sentence-transformers/all-mpnet-base-v2  # More accurate, slower
 Edit `Backend/.env`:
 
 ```bash
-LLM_PROVIDER=anthropic
-LLM_MODEL=claude-3-opus-20240229
+LLM_PROVIDER=openai
+LLM_MODEL=gpt-4o-mini
 ```
 
 ### **Modify Prompts**
@@ -272,7 +273,7 @@ rag.recommend_meals(
 ├─ Context Builder (Assembles complete prompts)
 │  └─ System + Examples + Context + Query
 │
-├─ LLM Client (OpenAI/Claude wrapper)
+├─ LLM Client (Gemini/OpenAI wrapper)
 │  └─ Makes API calls
 │
 └─ RAG Manager (Orchestrator)

@@ -98,7 +98,7 @@ export function AIChatScreen() {
             <View style={{ flex: 1, paddingRight: Spacing.sm }}>
               <Text style={styles.headerTitle}>AI Assistant 🤖</Text>
               <Text style={styles.headerSubtitle}>
-                Get personalized meal recommendations and health tips.
+                Get personalized meal recommendations.
               </Text>
             </View>
             <Button
@@ -122,8 +122,8 @@ export function AIChatScreen() {
           <View style={styles.emptyState}>
             <Text style={styles.emptyStateTitle}>Welcome! 👋</Text>
             <Text style={styles.emptyStateSubtitle}>
-              I am your AI nutritionist assistant. Ask about your meal plan,
-              nutrition, or diabetes management.
+              I am your AI nutritionist assistant. Ask about your meal plan and 
+              nutrition.
             </Text>
 
             {/* Suggested Prompts */}
@@ -157,6 +157,7 @@ export function AIChatScreen() {
                 message={item.content}
                 role={item.role}
                 timestamp={item.timestamp}
+                retrievedMeals={item.retrievedMeals}
               />
             )}
             contentContainerStyle={styles.messagesList}
@@ -289,7 +290,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xl,
   },
   messagesList: {
-    paddingHorizontal: Spacing.lg,
+    paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
     paddingBottom: Spacing.lg,
   },

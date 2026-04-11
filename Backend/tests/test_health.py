@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 # Ensure Backend root is importable when pytest is run from different working directories.
 ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
-    sys.path.insert(0, str(ROOT_DIR))
+    sys.path.append(str(ROOT_DIR))
 
 from app.main import app
 

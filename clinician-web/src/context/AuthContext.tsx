@@ -9,6 +9,14 @@ interface AuthProviderProps {
   children: ReactNode
 }
 
+const normalizeErrorMessage = (error: unknown, fallback: string): string => {
+  if (error instanceof Error && error.message.trim()) {
+    return error.message
+  }
+
+  return fallback
+}
+
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null)
   const [token, setToken] = useState<string | null>(null)
@@ -26,7 +34,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
           setToken(savedToken)
         }
       } catch (error) {
-        console.error('Failed to initialize auth:', error)
         localStorage.removeItem('authToken')
       } finally {
         setIsLoading(false)
@@ -45,8 +52,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       localStorage.setItem('authToken', response.token)
       apiClient.setToken(response.token)
     } catch (error) {
-      console.error('Login failed:', error)
-      throw error
+      throw new Error(normalizeErrorMessage(error, 'Login failed. Please try again.'))
     } finally {
       setIsLoading(false)
     }
@@ -58,8 +64,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const updatedUser = await authService.changePassword(currentPassword, newPassword)
       setUser(updatedUser)
     } catch (error) {
-      console.error('Change password failed:', error)
-      throw error
+      throw new Error(normalizeErrorMessage(error, 'Change password failed. Please try again.'))
     } finally {
       setIsLoading(false)
     }
@@ -73,7 +78,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       localStorage.removeItem('authToken')
       apiClient.clearToken()
     } catch (error) {
-      console.error('Logout failed:', error)
+      // Logout should not block the UI if the server request fails.
     }
   }, [])
 

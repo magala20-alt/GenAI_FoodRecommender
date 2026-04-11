@@ -66,10 +66,11 @@ class ContextBuilder:
 {user_query}
 
 ## Important Requirements
-1. Only recommend meals from the provided context
-2. Explain why each recommendation matches the user's needs
-3. Provide nutritional information where relevant
-4. Include preparation tips or modifications if applicable
+    1. Prioritize meals from the provided context when they fit the request
+    2. If context is sparse or cuisine-specific matches are missing, suggest suitable alternatives from general culinary knowledge
+    3. Explain why each recommendation matches the user's needs
+    4. Provide nutritional information where relevant
+    5. Include preparation tips or modifications if applicable
 """
         
         messages.append({"role": "user", "content": user_message})

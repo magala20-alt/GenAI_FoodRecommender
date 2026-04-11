@@ -30,7 +30,7 @@ class PromptRegistry:
         
         Args:
             category: "meals" or "patients"
-            prompt_name: Name of the prompt variable (e.g., "SYSTEM_PROMT", "CLINICIAN_SYSTEM_PROMPT")
+            prompt_name: Name of the prompt variable (e.g., "SYSTEM_PROMPT", "CLINICIAN_SYSTEM_PROMPT")
             reload: Force reload from disk instead of cache
             
         Returns:
@@ -89,7 +89,7 @@ class PromptRegistry:
             System prompt string
         """
         if prompt_type == "base" or prompt_type == "search":
-            return cls.load_prompt("meals", "SYSTEM_PROMT")
+            return cls.load_prompt("meals", "SYSTEM_PROMPT")
         elif prompt_type == "snapshot":
             return cls.load_prompt("meals", "MEAL_SNAPSHOT_EXTRACT_PROMPT")
         else:

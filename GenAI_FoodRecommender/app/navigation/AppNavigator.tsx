@@ -8,6 +8,7 @@ import { DiaryScreen } from '../screens/diary/DiaryScreen'
 import { ProgressScreen } from '../screens/progress/ProgressScreen'
 import { AIChatScreen } from '../screens/chat/AIChatScreen'
 import { SettingsScreen } from '../screens/settings/SettingsScreen'
+import { SuggestedMealsScreen } from '../screens/admin/SuggestedMealsScreen'
 import { Colors, Spacing, Typography, scale } from '../constants/theme'
 
 const Stack = createNativeStackNavigator()
@@ -125,5 +126,8 @@ const TabNavigator = () => {
 export const AppNavigator = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="Main" component={TabNavigator} />
+    <Stack.Group screenOptions={{ presentation: 'modal' }}>
+      <Stack.Screen name="SuggestedMeals" component={SuggestedMealsScreen} />
+    </Stack.Group>
   </Stack.Navigator>
 )

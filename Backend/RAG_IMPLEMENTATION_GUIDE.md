@@ -6,7 +6,7 @@ You now have a **complete Retrieval-Augmented Generation (RAG)** system that:
 
 - ✅ Retrieves relevant context from your vector database
 - ✅ Augments queries with system prompts, examples, and retrieved data
-- ✅ Generates responses using OpenAI/Claude
+- ✅ Generates responses using Gemini/OpenAI
 - ✅ Maintains source attribution
 - ✅ Loads prompts dynamically (no code changes needed)
 
@@ -52,7 +52,7 @@ You now have a **complete Retrieval-Augmented Generation (RAG)** system that:
         ┌────────────────▼────────────────────────────┐
         │  4. LLM Call                                │
         │     (llm_client.py)                         │
-        │     - Call OpenAI or Claude                 │
+        │     - Call Gemini or OpenAI                 │
         │     - Pass complete prompt                  │
         │     - Return response                       │
         └────────────────┬───────────────────────────┘
@@ -163,8 +163,8 @@ prompt = PromptRegistry.get_meal_prompt("search")
 
 **Supported Providers**:
 
-1. **OpenAI** (GPT-4, GPT-3.5)
-2. **Anthropic** (Claude 3)
+1. **Gemini** (gemini-2.5-flash, gemini-2.5-pro)
+2. **OpenAI** (gpt-4o-mini, gpt-4o)
 
 **Key Methods**:
 
@@ -176,9 +176,9 @@ prompt = PromptRegistry.get_meal_prompt("search")
 
 ```bash
 # Set in .env
-LLM_PROVIDER=openai          # or "anthropic"
-LLM_API_KEY=sk-...           # Your API key
-LLM_MODEL=gpt-4              # or claude-3-sonnet-20240229
+LLM_PROVIDER=gemini
+LLM_API_KEY=AIza-your-google-ai-key
+LLM_MODEL=gemini-2.5-flash
 LLM_TEMPERATURE=0.7          # Creativity vs consistency
 ```
 
@@ -231,7 +231,7 @@ User Request:
    Context: [Retrieved meals with nutrition info]
    Query: User's request
         ↓
-5. CALL LLM: Send to OpenAI/Claude
+5. CALL LLM: Send to Gemini/OpenAI
         ↓
 6. RETURN:
    {
@@ -255,7 +255,7 @@ Clinician Requests Patient Summary
    Meal History: [Last 7 meals with nutrition]
    Trends: [Eating patterns, health risks]
         ↓
-4. CALL LLM: OpenAI/Claude analyzes
+4. CALL LLM: Gemini/OpenAI analyzes
         ↓
 5. RETURN: Professional summary
 ```
@@ -277,10 +277,15 @@ Create `.env` file in Backend/ folder:
 
 ```bash
 # LLM Configuration
-LLM_PROVIDER=openai                    # or "anthropic"
-LLM_API_KEY=sk-your-api-key-here      # Get from OpenAI/Anthropic
-LLM_MODEL=gpt-4                        # or gpt-3.5-turbo, claude-3-sonnet-20240229
+LLM_PROVIDER=gemini
+LLM_API_KEY=AIza-your-google-ai-key
+LLM_MODEL=gemini-2.5-flash
 LLM_TEMPERATURE=0.7                    # 0-1, higher = more creative
+
+# Optional provider-specific keys supported by llm_client.py
+# GEMINI_API_KEY=AIza-your-google-ai-key
+# GOOGLE_API_KEY=AIza-your-google-ai-key
+# OPENAI_API_KEY=sk-your-openai-key
 
 # Embedding Configuration
 EMBEDDING_MODEL=all-MiniLM-L6-v2      # HuggingFace model name
@@ -368,10 +373,10 @@ EMBEDDING_MODEL=sentence-transformers/all-mpnet-base-v2  # Larger, more accurate
 **In .env**:
 
 ```bash
-# Switch to Claude
-LLM_PROVIDER=anthropic
-LLM_MODEL=claude-3-sonnet-20240229
-LLM_API_KEY=sk-ant-...
+# Switch to OpenAI
+LLM_PROVIDER=openai
+LLM_MODEL=gpt-4o-mini
+OPENAI_API_KEY=sk-...
 ```
 
 ### Modify Prompts
@@ -430,7 +435,7 @@ curl "http://localhost:8000/api/v1/rag/prompts/available"
 
 | Issue                         | Cause                         | Solution                                                                                        |
 | ----------------------------- | ----------------------------- | ----------------------------------------------------------------------------------------------- |
-| "No LLM provider initialized" | API key not set               | Set `LLM_API_KEY` in .env                                                                       |
+| "No LLM provider initialized" | API key not set               | Set LLM_API_KEY or GEMINI_API_KEY in .env                                                       |
 | Search returns nothing        | Meals not embedded            | Run `generate_meal_embeddings_batch()`                                                          |
 | Embeddings are all zeros      | Empty or missing descriptions | Add descriptions to meals in DB                                                                 |
 | Slow vector search            | Large dataset                 | Add pgvector index: `CREATE INDEX ON meals USING ivfflat (embedding l2_ops) WITH (lists = 100)` |
@@ -516,6 +521,6 @@ Backend/app/
 
 - **Sentence Transformers**: https://www.sbert.net/
 - **pgvector**: https://github.com/pgvector/pgvector
+- **Google Gemini API**: https://ai.google.dev/
 - **OpenAI API**: https://platform.openai.com/docs/
-- **Anthropic Claude**: https://www.anthropic.com/
 - **RAG Techniques**: https://arxiv.org/abs/2005.11401

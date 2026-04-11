@@ -1,0 +1,1807 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="5" skipped="0" tests="8" time="1309.344" timestamp="2026-04-10T20:09:10.684434+04:00" hostname="DESKTOP-P4N942D"><testcase classname="tests.test_functional_api" name="test_functional_auth_profile_update_roundtrip" time="260.208"><failure message="sqlalchemy.exc.OperationalError: (psycopg.errors.ConnectionTimeout) connection timeout expired&#10;Multiple connection attempts failed. All failures were:&#10;- host: 'localhost', port: 5432, hostaddr: '::1': connection timeout expired&#10;- host: 'localhost', port: 5432, hostaddr: '127.0.0.1': connection timeout expired&#10;(Background on this error at: https://sqlalche.me/e/20/e3q8)">self = &lt;sqlalchemy.engine.base.Connection object at 0x00000235992D7E00&gt;
+engine = Engine(postgresql+psycopg://postgres:***@localhost:5432/genAI_nutrition_platform)
+connection = None, _has_events = None, _allow_revalidate = True, _allow_autobegin = True
+
+    def __init__(
+        self,
+        engine: Engine,
+        connection: Optional[PoolProxiedConnection] = None,
+        _has_events: Optional[bool] = None,
+        _allow_revalidate: bool = True,
+        _allow_autobegin: bool = True,
+    ):
+        """Construct a new Connection."""
+        self.engine = engine
+        self.dialect = dialect = engine.dialect
+    
+        if connection is None:
+            try:
+&gt;               self._dbapi_connection = engine.raw_connection()
+                                         ^^^^^^^^^^^^^^^^^^^^^^^
+
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\engine\base.py:143: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\engine\base.py:3301: in raw_connection
+    return self.pool.connect()
+           ^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:447: in connect
+    return _ConnectionFairy._checkout(self)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:1264: in _checkout
+    fairy = _ConnectionRecord.checkout(pool)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:711: in checkout
+    rec = pool._do_get()
+          ^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\impl.py:177: in _do_get
+    with util.safe_reraise():
+         ^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\util\langhelpers.py:224: in __exit__
+    raise exc_value.with_traceback(exc_tb)
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\impl.py:175: in _do_get
+    return self._create_connection()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:388: in _create_connection
+    return _ConnectionRecord(self)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:673: in __init__
+    self.__connect()
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:899: in __connect
+    with util.safe_reraise():
+         ^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\util\langhelpers.py:224: in __exit__
+    raise exc_value.with_traceback(exc_tb)
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:895: in __connect
+    self.dbapi_connection = connection = pool._invoke_creator(self)
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\engine\create.py:661: in connect
+    return dialect.connect(*cargs, **cparams)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\engine\default.py:629: in connect
+    return self.loaded_dbapi.connect(*cargs, **cparams)  # type: ignore[no-any-return]  # NOQA: E501
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+cls = &lt;class 'psycopg.Connection'&gt;
+conninfo = 'host=localhost dbname=genAI_nutrition_platform user=postgres password=root port=5432 hostaddr=127.0.0.1'
+autocommit = False, prepare_threshold = 5
+context = &lt;psycopg.adapt.AdaptersMap object at 0x00000235963856D0&gt;, row_factory = None
+cursor_factory = None
+kwargs = {'dbname': 'genAI_nutrition_platform', 'host': 'localhost', 'password': 'root', 'port': 5432, ...}
+params = {'dbname': 'genAI_nutrition_platform', 'host': 'localhost', 'password': 'root', 'port': 5432, ...}
+timeout = 130
+
+    @classmethod
+    def connect(
+        cls,
+        conninfo: str = "",
+        *,
+        autocommit: bool = False,
+        prepare_threshold: int | None = 5,
+        context: AdaptContext | None = None,
+        row_factory: RowFactory[Row] | None = None,
+        cursor_factory: type[Cursor[Row]] | None = None,
+        **kwargs: ConnParam,
+    ) -&gt; Self:
+        """
+        Connect to a database server and return a new `Connection` instance.
+        """
+    
+        params = cls._get_connection_params(conninfo, **kwargs)
+        timeout = timeout_from_conninfo(params)
+        rv = None
+        attempts = conninfo_attempts(params)
+        conn_errors: list[tuple[e.Error, str]] = []
+        for attempt in attempts:
+            tdescr = (attempt.get("host"), attempt.get("port"), attempt.get("hostaddr"))
+            descr = "host: %r, port: %r, hostaddr: %r" % tdescr
+            logger.debug("connection attempt: %s", descr)
+            try:
+                conninfo = make_conninfo("", **attempt)
+                gen = cls._connect_gen(conninfo, timeout=timeout)
+                rv = waiting.wait_conn(gen, interval=_WAIT_INTERVAL)
+            except e.Error as ex:
+                logger.debug("connection failed: %s: %s", descr, str(ex))
+                conn_errors.append((ex, descr))
+            except e._NO_TRACEBACK as ex:
+                raise ex.with_traceback(None)
+            else:
+                logger.debug("connection succeeded: %s", descr)
+                break
+    
+        if not rv:
+            last_ex = conn_errors[-1][0]
+            if len(conn_errors) == 1:
+                raise last_ex.with_traceback(None)
+    
+            # Create a new exception with the same type as the last one, containing
+            # all attempt errors while preserving backward compatibility.
+            lines = [str(last_ex)]
+            lines.append("Multiple connection attempts failed. All failures were:")
+            lines.extend((f"- {descr}: {error}" for error, descr in conn_errors))
+&gt;           raise type(last_ex)("\n".join(lines)).with_traceback(None)
+E           psycopg.errors.ConnectionTimeout: connection timeout expired
+E           Multiple connection attempts failed. All failures were:
+E           - host: 'localhost', port: 5432, hostaddr: '::1': connection timeout expired
+E           - host: 'localhost', port: 5432, hostaddr: '127.0.0.1': connection timeout expired
+
+D:\HP\anaconda\Lib\site-packages\psycopg\connection.py:127: ConnectionTimeout
+
+The above exception was the direct cause of the following exception:
+
+    @pytest.mark.functional
+    def test_functional_auth_profile_update_roundtrip() -&gt; None:
+&gt;       token = _register_patient()
+                ^^^^^^^^^^^^^^^^^^^
+
+tests\test_functional_api.py:43: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_functional_api.py:20: in _register_patient
+    response = client.post(
+D:\HP\anaconda\Lib\site-packages\starlette\testclient.py:552: in post
+    return super().post(
+D:\HP\anaconda\Lib\site-packages\httpx\_client.py:1144: in post
+    return self.request(
+D:\HP\anaconda\Lib\site-packages\starlette\testclient.py:451: in request
+    return super().request(
+D:\HP\anaconda\Lib\site-packages\httpx\_client.py:825: in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\httpx\_client.py:914: in send
+    response = self._send_handling_auth(
+D:\HP\anaconda\Lib\site-packages\httpx\_client.py:942: in _send_handling_auth
+    response = self._send_handling_redirects(
+D:\HP\anaconda\Lib\site-packages\httpx\_client.py:979: in _send_handling_redirects
+    response = self._send_single_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\httpx\_client.py:1014: in _send_single_request
+    response = transport.handle_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\starlette\testclient.py:354: in handle_request
+    raise exc
+D:\HP\anaconda\Lib\site-packages\starlette\testclient.py:351: in handle_request
+    portal.call(self.app, scope, receive, send)
+D:\HP\anaconda\Lib\site-packages\anyio\from_thread.py:290: in call
+    return cast(T_Retval, self.start_task_soon(func, *args).result())
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\concurrent\futures\_base.py:456: in result
+    return self.__get_result()
+           ^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\concurrent\futures\_base.py:401: in __get_result
+    raise self._exception
+D:\HP\anaconda\Lib\site-packages\anyio\from_thread.py:221: in _call_func
+    retval = await retval_or_awaitable
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\fastapi\applications.py:1054: in __call__
+    await super().__call__(scope, receive, send)
+D:\HP\anaconda\Lib\site-packages\starlette\applications.py:113: in __call__
+    await self.middleware_stack(scope, receive, send)
+D:\HP\anaconda\Lib\site-packages\starlette\middleware\errors.py:186: in __call__
+    raise exc
+D:\HP\anaconda\Lib\site-packages\starlette\middleware\errors.py:164: in __call__
+    await self.app(scope, receive, _send)
+D:\HP\anaconda\Lib\site-packages\starlette\middleware\cors.py:85: in __call__
+    await self.app(scope, receive, send)
+D:\HP\anaconda\Lib\site-packages\starlette\middleware\exceptions.py:63: in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+D:\HP\anaconda\Lib\site-packages\starlette\_exception_handler.py:53: in wrapped_app
+    raise exc
+D:\HP\anaconda\Lib\site-packages\starlette\_exception_handler.py:42: in wrapped_app
+    await app(scope, receive, sender)
+D:\HP\anaconda\Lib\site-packages\starlette\routing.py:716: in __call__
+    await self.middleware_stack(scope, receive, send)
+D:\HP\anaconda\Lib\site-packages\starlette\routing.py:736: in app
+    await route.handle(scope, receive, send)
+D:\HP\anaconda\Lib\site-packages\starlette\routing.py:290: in handle
+    await self.app(scope, receive, send)
+D:\HP\anaconda\Lib\site-packages\starlette\routing.py:78: in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+D:\HP\anaconda\Lib\site-packages\starlette\_exception_handler.py:53: in wrapped_app
+    raise exc
+D:\HP\anaconda\Lib\site-packages\starlette\_exception_handler.py:42: in wrapped_app
+    await app(scope, receive, sender)
+D:\HP\anaconda\Lib\site-packages\starlette\routing.py:75: in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\fastapi\routing.py:302: in app
+    raw_response = await run_endpoint_function(
+D:\HP\anaconda\Lib\site-packages\fastapi\routing.py:215: in run_endpoint_function
+    return await run_in_threadpool(dependant.call, **values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\starlette\concurrency.py:38: in run_in_threadpool
+    return await anyio.to_thread.run_sync(func)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\anyio\to_thread.py:56: in run_sync
+    return await get_async_backend().run_sync_in_worker_thread(
+D:\HP\anaconda\Lib\site-packages\anyio\_backends\_asyncio.py:2505: in run_sync_in_worker_thread
+    return await future
+           ^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\anyio\_backends\_asyncio.py:1005: in run
+    result = context.run(func, *args)
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+app\api\routes\auth.py:59: in register
+    user = create_user(db=db, payload=payload)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app\services\auth.py:64: in create_user
+    existing = db.scalar(select(User).where(User.email == payload.email))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\orm\session.py:2413: in scalar
+    return self._execute_internal(
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\orm\session.py:2241: in _execute_internal
+    conn = self._connection_for_bind(bind)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\orm\session.py:2110: in _connection_for_bind
+    return trans._connection_for_bind(engine, execution_options)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;string&gt;:2: in _connection_for_bind
+    ???
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\orm\state_changes.py:137: in _go
+    ret_value = fn(self, *arg, **kw)
+                ^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\orm\session.py:1189: in _connection_for_bind
+    conn = bind.connect()
+           ^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\engine\base.py:3277: in connect
+    return self._connection_cls(self)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\engine\base.py:145: in __init__
+    Connection._handle_dbapi_exception_noconnection(
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\engine\base.py:2440: in _handle_dbapi_exception_noconnection
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\engine\base.py:143: in __init__
+    self._dbapi_connection = engine.raw_connection()
+                             ^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\engine\base.py:3301: in raw_connection
+    return self.pool.connect()
+           ^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:447: in connect
+    return _ConnectionFairy._checkout(self)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:1264: in _checkout
+    fairy = _ConnectionRecord.checkout(pool)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:711: in checkout
+    rec = pool._do_get()
+          ^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\impl.py:177: in _do_get
+    with util.safe_reraise():
+         ^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\util\langhelpers.py:224: in __exit__
+    raise exc_value.with_traceback(exc_tb)
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\impl.py:175: in _do_get
+    return self._create_connection()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:388: in _create_connection
+    return _ConnectionRecord(self)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:673: in __init__
+    self.__connect()
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:899: in __connect
+    with util.safe_reraise():
+         ^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\util\langhelpers.py:224: in __exit__
+    raise exc_value.with_traceback(exc_tb)
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:895: in __connect
+    self.dbapi_connection = connection = pool._invoke_creator(self)
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\engine\create.py:661: in connect
+    return dialect.connect(*cargs, **cparams)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\engine\default.py:629: in connect
+    return self.loaded_dbapi.connect(*cargs, **cparams)  # type: ignore[no-any-return]  # NOQA: E501
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+cls = &lt;class 'psycopg.Connection'&gt;
+conninfo = 'host=localhost dbname=genAI_nutrition_platform user=postgres password=root port=5432 hostaddr=127.0.0.1'
+autocommit = False, prepare_threshold = 5
+context = &lt;psycopg.adapt.AdaptersMap object at 0x00000235963856D0&gt;, row_factory = None
+cursor_factory = None
+kwargs = {'dbname': 'genAI_nutrition_platform', 'host': 'localhost', 'password': 'root', 'port': 5432, ...}
+params = {'dbname': 'genAI_nutrition_platform', 'host': 'localhost', 'password': 'root', 'port': 5432, ...}
+timeout = 130
+
+    @classmethod
+    def connect(
+        cls,
+        conninfo: str = "",
+        *,
+        autocommit: bool = False,
+        prepare_threshold: int | None = 5,
+        context: AdaptContext | None = None,
+        row_factory: RowFactory[Row] | None = None,
+        cursor_factory: type[Cursor[Row]] | None = None,
+        **kwargs: ConnParam,
+    ) -&gt; Self:
+        """
+        Connect to a database server and return a new `Connection` instance.
+        """
+    
+        params = cls._get_connection_params(conninfo, **kwargs)
+        timeout = timeout_from_conninfo(params)
+        rv = None
+        attempts = conninfo_attempts(params)
+        conn_errors: list[tuple[e.Error, str]] = []
+        for attempt in attempts:
+            tdescr = (attempt.get("host"), attempt.get("port"), attempt.get("hostaddr"))
+            descr = "host: %r, port: %r, hostaddr: %r" % tdescr
+            logger.debug("connection attempt: %s", descr)
+            try:
+                conninfo = make_conninfo("", **attempt)
+                gen = cls._connect_gen(conninfo, timeout=timeout)
+                rv = waiting.wait_conn(gen, interval=_WAIT_INTERVAL)
+            except e.Error as ex:
+                logger.debug("connection failed: %s: %s", descr, str(ex))
+                conn_errors.append((ex, descr))
+            except e._NO_TRACEBACK as ex:
+                raise ex.with_traceback(None)
+            else:
+                logger.debug("connection succeeded: %s", descr)
+                break
+    
+        if not rv:
+            last_ex = conn_errors[-1][0]
+            if len(conn_errors) == 1:
+                raise last_ex.with_traceback(None)
+    
+            # Create a new exception with the same type as the last one, containing
+            # all attempt errors while preserving backward compatibility.
+            lines = [str(last_ex)]
+            lines.append("Multiple connection attempts failed. All failures were:")
+            lines.extend((f"- {descr}: {error}" for error, descr in conn_errors))
+&gt;           raise type(last_ex)("\n".join(lines)).with_traceback(None)
+E           sqlalchemy.exc.OperationalError: (psycopg.errors.ConnectionTimeout) connection timeout expired
+E           Multiple connection attempts failed. All failures were:
+E           - host: 'localhost', port: 5432, hostaddr: '::1': connection timeout expired
+E           - host: 'localhost', port: 5432, hostaddr: '127.0.0.1': connection timeout expired
+E           (Background on this error at: https://sqlalche.me/e/20/e3q8)
+
+D:\HP\anaconda\Lib\site-packages\psycopg\connection.py:127: OperationalError</failure></testcase><testcase classname="tests.test_functional_api" name="test_functional_patient_meal_and_vitals_log_flow" time="260.150"><failure message="sqlalchemy.exc.OperationalError: (psycopg.errors.ConnectionTimeout) connection timeout expired&#10;Multiple connection attempts failed. All failures were:&#10;- host: 'localhost', port: 5432, hostaddr: '::1': connection timeout expired&#10;- host: 'localhost', port: 5432, hostaddr: '127.0.0.1': connection timeout expired&#10;(Background on this error at: https://sqlalche.me/e/20/e3q8)">self = &lt;sqlalchemy.engine.base.Connection object at 0x000002359A4420D0&gt;
+engine = Engine(postgresql+psycopg://postgres:***@localhost:5432/genAI_nutrition_platform)
+connection = None, _has_events = None, _allow_revalidate = True, _allow_autobegin = True
+
+    def __init__(
+        self,
+        engine: Engine,
+        connection: Optional[PoolProxiedConnection] = None,
+        _has_events: Optional[bool] = None,
+        _allow_revalidate: bool = True,
+        _allow_autobegin: bool = True,
+    ):
+        """Construct a new Connection."""
+        self.engine = engine
+        self.dialect = dialect = engine.dialect
+    
+        if connection is None:
+            try:
+&gt;               self._dbapi_connection = engine.raw_connection()
+                                         ^^^^^^^^^^^^^^^^^^^^^^^
+
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\engine\base.py:143: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\engine\base.py:3301: in raw_connection
+    return self.pool.connect()
+           ^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:447: in connect
+    return _ConnectionFairy._checkout(self)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:1264: in _checkout
+    fairy = _ConnectionRecord.checkout(pool)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:711: in checkout
+    rec = pool._do_get()
+          ^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\impl.py:177: in _do_get
+    with util.safe_reraise():
+         ^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\util\langhelpers.py:224: in __exit__
+    raise exc_value.with_traceback(exc_tb)
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\impl.py:175: in _do_get
+    return self._create_connection()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:388: in _create_connection
+    return _ConnectionRecord(self)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:673: in __init__
+    self.__connect()
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:899: in __connect
+    with util.safe_reraise():
+         ^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\util\langhelpers.py:224: in __exit__
+    raise exc_value.with_traceback(exc_tb)
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:895: in __connect
+    self.dbapi_connection = connection = pool._invoke_creator(self)
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\engine\create.py:661: in connect
+    return dialect.connect(*cargs, **cparams)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\engine\default.py:629: in connect
+    return self.loaded_dbapi.connect(*cargs, **cparams)  # type: ignore[no-any-return]  # NOQA: E501
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+cls = &lt;class 'psycopg.Connection'&gt;
+conninfo = 'host=localhost dbname=genAI_nutrition_platform user=postgres password=root port=5432 hostaddr=127.0.0.1'
+autocommit = False, prepare_threshold = 5
+context = &lt;psycopg.adapt.AdaptersMap object at 0x00000235963856D0&gt;, row_factory = None
+cursor_factory = None
+kwargs = {'dbname': 'genAI_nutrition_platform', 'host': 'localhost', 'password': 'root', 'port': 5432, ...}
+params = {'dbname': 'genAI_nutrition_platform', 'host': 'localhost', 'password': 'root', 'port': 5432, ...}
+timeout = 130
+
+    @classmethod
+    def connect(
+        cls,
+        conninfo: str = "",
+        *,
+        autocommit: bool = False,
+        prepare_threshold: int | None = 5,
+        context: AdaptContext | None = None,
+        row_factory: RowFactory[Row] | None = None,
+        cursor_factory: type[Cursor[Row]] | None = None,
+        **kwargs: ConnParam,
+    ) -&gt; Self:
+        """
+        Connect to a database server and return a new `Connection` instance.
+        """
+    
+        params = cls._get_connection_params(conninfo, **kwargs)
+        timeout = timeout_from_conninfo(params)
+        rv = None
+        attempts = conninfo_attempts(params)
+        conn_errors: list[tuple[e.Error, str]] = []
+        for attempt in attempts:
+            tdescr = (attempt.get("host"), attempt.get("port"), attempt.get("hostaddr"))
+            descr = "host: %r, port: %r, hostaddr: %r" % tdescr
+            logger.debug("connection attempt: %s", descr)
+            try:
+                conninfo = make_conninfo("", **attempt)
+                gen = cls._connect_gen(conninfo, timeout=timeout)
+                rv = waiting.wait_conn(gen, interval=_WAIT_INTERVAL)
+            except e.Error as ex:
+                logger.debug("connection failed: %s: %s", descr, str(ex))
+                conn_errors.append((ex, descr))
+            except e._NO_TRACEBACK as ex:
+                raise ex.with_traceback(None)
+            else:
+                logger.debug("connection succeeded: %s", descr)
+                break
+    
+        if not rv:
+            last_ex = conn_errors[-1][0]
+            if len(conn_errors) == 1:
+                raise last_ex.with_traceback(None)
+    
+            # Create a new exception with the same type as the last one, containing
+            # all attempt errors while preserving backward compatibility.
+            lines = [str(last_ex)]
+            lines.append("Multiple connection attempts failed. All failures were:")
+            lines.extend((f"- {descr}: {error}" for error, descr in conn_errors))
+&gt;           raise type(last_ex)("\n".join(lines)).with_traceback(None)
+E           psycopg.errors.ConnectionTimeout: connection timeout expired
+E           Multiple connection attempts failed. All failures were:
+E           - host: 'localhost', port: 5432, hostaddr: '::1': connection timeout expired
+E           - host: 'localhost', port: 5432, hostaddr: '127.0.0.1': connection timeout expired
+
+D:\HP\anaconda\Lib\site-packages\psycopg\connection.py:127: ConnectionTimeout
+
+The above exception was the direct cause of the following exception:
+
+    @pytest.mark.functional
+    def test_functional_patient_meal_and_vitals_log_flow() -&gt; None:
+&gt;       token = _register_patient()
+                ^^^^^^^^^^^^^^^^^^^
+
+tests\test_functional_api.py:63: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_functional_api.py:20: in _register_patient
+    response = client.post(
+D:\HP\anaconda\Lib\site-packages\starlette\testclient.py:552: in post
+    return super().post(
+D:\HP\anaconda\Lib\site-packages\httpx\_client.py:1144: in post
+    return self.request(
+D:\HP\anaconda\Lib\site-packages\starlette\testclient.py:451: in request
+    return super().request(
+D:\HP\anaconda\Lib\site-packages\httpx\_client.py:825: in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\httpx\_client.py:914: in send
+    response = self._send_handling_auth(
+D:\HP\anaconda\Lib\site-packages\httpx\_client.py:942: in _send_handling_auth
+    response = self._send_handling_redirects(
+D:\HP\anaconda\Lib\site-packages\httpx\_client.py:979: in _send_handling_redirects
+    response = self._send_single_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\httpx\_client.py:1014: in _send_single_request
+    response = transport.handle_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\starlette\testclient.py:354: in handle_request
+    raise exc
+D:\HP\anaconda\Lib\site-packages\starlette\testclient.py:351: in handle_request
+    portal.call(self.app, scope, receive, send)
+D:\HP\anaconda\Lib\site-packages\anyio\from_thread.py:290: in call
+    return cast(T_Retval, self.start_task_soon(func, *args).result())
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\concurrent\futures\_base.py:456: in result
+    return self.__get_result()
+           ^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\concurrent\futures\_base.py:401: in __get_result
+    raise self._exception
+D:\HP\anaconda\Lib\site-packages\anyio\from_thread.py:221: in _call_func
+    retval = await retval_or_awaitable
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\fastapi\applications.py:1054: in __call__
+    await super().__call__(scope, receive, send)
+D:\HP\anaconda\Lib\site-packages\starlette\applications.py:113: in __call__
+    await self.middleware_stack(scope, receive, send)
+D:\HP\anaconda\Lib\site-packages\starlette\middleware\errors.py:186: in __call__
+    raise exc
+D:\HP\anaconda\Lib\site-packages\starlette\middleware\errors.py:164: in __call__
+    await self.app(scope, receive, _send)
+D:\HP\anaconda\Lib\site-packages\starlette\middleware\cors.py:85: in __call__
+    await self.app(scope, receive, send)
+D:\HP\anaconda\Lib\site-packages\starlette\middleware\exceptions.py:63: in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+D:\HP\anaconda\Lib\site-packages\starlette\_exception_handler.py:53: in wrapped_app
+    raise exc
+D:\HP\anaconda\Lib\site-packages\starlette\_exception_handler.py:42: in wrapped_app
+    await app(scope, receive, sender)
+D:\HP\anaconda\Lib\site-packages\starlette\routing.py:716: in __call__
+    await self.middleware_stack(scope, receive, send)
+D:\HP\anaconda\Lib\site-packages\starlette\routing.py:736: in app
+    await route.handle(scope, receive, send)
+D:\HP\anaconda\Lib\site-packages\starlette\routing.py:290: in handle
+    await self.app(scope, receive, send)
+D:\HP\anaconda\Lib\site-packages\starlette\routing.py:78: in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+D:\HP\anaconda\Lib\site-packages\starlette\_exception_handler.py:53: in wrapped_app
+    raise exc
+D:\HP\anaconda\Lib\site-packages\starlette\_exception_handler.py:42: in wrapped_app
+    await app(scope, receive, sender)
+D:\HP\anaconda\Lib\site-packages\starlette\routing.py:75: in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\fastapi\routing.py:302: in app
+    raw_response = await run_endpoint_function(
+D:\HP\anaconda\Lib\site-packages\fastapi\routing.py:215: in run_endpoint_function
+    return await run_in_threadpool(dependant.call, **values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\starlette\concurrency.py:38: in run_in_threadpool
+    return await anyio.to_thread.run_sync(func)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\anyio\to_thread.py:56: in run_sync
+    return await get_async_backend().run_sync_in_worker_thread(
+D:\HP\anaconda\Lib\site-packages\anyio\_backends\_asyncio.py:2505: in run_sync_in_worker_thread
+    return await future
+           ^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\anyio\_backends\_asyncio.py:1005: in run
+    result = context.run(func, *args)
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+app\api\routes\auth.py:59: in register
+    user = create_user(db=db, payload=payload)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app\services\auth.py:64: in create_user
+    existing = db.scalar(select(User).where(User.email == payload.email))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\orm\session.py:2413: in scalar
+    return self._execute_internal(
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\orm\session.py:2241: in _execute_internal
+    conn = self._connection_for_bind(bind)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\orm\session.py:2110: in _connection_for_bind
+    return trans._connection_for_bind(engine, execution_options)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;string&gt;:2: in _connection_for_bind
+    ???
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\orm\state_changes.py:137: in _go
+    ret_value = fn(self, *arg, **kw)
+                ^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\orm\session.py:1189: in _connection_for_bind
+    conn = bind.connect()
+           ^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\engine\base.py:3277: in connect
+    return self._connection_cls(self)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\engine\base.py:145: in __init__
+    Connection._handle_dbapi_exception_noconnection(
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\engine\base.py:2440: in _handle_dbapi_exception_noconnection
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\engine\base.py:143: in __init__
+    self._dbapi_connection = engine.raw_connection()
+                             ^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\engine\base.py:3301: in raw_connection
+    return self.pool.connect()
+           ^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:447: in connect
+    return _ConnectionFairy._checkout(self)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:1264: in _checkout
+    fairy = _ConnectionRecord.checkout(pool)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:711: in checkout
+    rec = pool._do_get()
+          ^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\impl.py:177: in _do_get
+    with util.safe_reraise():
+         ^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\util\langhelpers.py:224: in __exit__
+    raise exc_value.with_traceback(exc_tb)
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\impl.py:175: in _do_get
+    return self._create_connection()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:388: in _create_connection
+    return _ConnectionRecord(self)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:673: in __init__
+    self.__connect()
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:899: in __connect
+    with util.safe_reraise():
+         ^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\util\langhelpers.py:224: in __exit__
+    raise exc_value.with_traceback(exc_tb)
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:895: in __connect
+    self.dbapi_connection = connection = pool._invoke_creator(self)
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\engine\create.py:661: in connect
+    return dialect.connect(*cargs, **cparams)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\engine\default.py:629: in connect
+    return self.loaded_dbapi.connect(*cargs, **cparams)  # type: ignore[no-any-return]  # NOQA: E501
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+cls = &lt;class 'psycopg.Connection'&gt;
+conninfo = 'host=localhost dbname=genAI_nutrition_platform user=postgres password=root port=5432 hostaddr=127.0.0.1'
+autocommit = False, prepare_threshold = 5
+context = &lt;psycopg.adapt.AdaptersMap object at 0x00000235963856D0&gt;, row_factory = None
+cursor_factory = None
+kwargs = {'dbname': 'genAI_nutrition_platform', 'host': 'localhost', 'password': 'root', 'port': 5432, ...}
+params = {'dbname': 'genAI_nutrition_platform', 'host': 'localhost', 'password': 'root', 'port': 5432, ...}
+timeout = 130
+
+    @classmethod
+    def connect(
+        cls,
+        conninfo: str = "",
+        *,
+        autocommit: bool = False,
+        prepare_threshold: int | None = 5,
+        context: AdaptContext | None = None,
+        row_factory: RowFactory[Row] | None = None,
+        cursor_factory: type[Cursor[Row]] | None = None,
+        **kwargs: ConnParam,
+    ) -&gt; Self:
+        """
+        Connect to a database server and return a new `Connection` instance.
+        """
+    
+        params = cls._get_connection_params(conninfo, **kwargs)
+        timeout = timeout_from_conninfo(params)
+        rv = None
+        attempts = conninfo_attempts(params)
+        conn_errors: list[tuple[e.Error, str]] = []
+        for attempt in attempts:
+            tdescr = (attempt.get("host"), attempt.get("port"), attempt.get("hostaddr"))
+            descr = "host: %r, port: %r, hostaddr: %r" % tdescr
+            logger.debug("connection attempt: %s", descr)
+            try:
+                conninfo = make_conninfo("", **attempt)
+                gen = cls._connect_gen(conninfo, timeout=timeout)
+                rv = waiting.wait_conn(gen, interval=_WAIT_INTERVAL)
+            except e.Error as ex:
+                logger.debug("connection failed: %s: %s", descr, str(ex))
+                conn_errors.append((ex, descr))
+            except e._NO_TRACEBACK as ex:
+                raise ex.with_traceback(None)
+            else:
+                logger.debug("connection succeeded: %s", descr)
+                break
+    
+        if not rv:
+            last_ex = conn_errors[-1][0]
+            if len(conn_errors) == 1:
+                raise last_ex.with_traceback(None)
+    
+            # Create a new exception with the same type as the last one, containing
+            # all attempt errors while preserving backward compatibility.
+            lines = [str(last_ex)]
+            lines.append("Multiple connection attempts failed. All failures were:")
+            lines.extend((f"- {descr}: {error}" for error, descr in conn_errors))
+&gt;           raise type(last_ex)("\n".join(lines)).with_traceback(None)
+E           sqlalchemy.exc.OperationalError: (psycopg.errors.ConnectionTimeout) connection timeout expired
+E           Multiple connection attempts failed. All failures were:
+E           - host: 'localhost', port: 5432, hostaddr: '::1': connection timeout expired
+E           - host: 'localhost', port: 5432, hostaddr: '127.0.0.1': connection timeout expired
+E           (Background on this error at: https://sqlalche.me/e/20/e3q8)
+
+D:\HP\anaconda\Lib\site-packages\psycopg\connection.py:127: OperationalError</failure></testcase><testcase classname="tests.test_blackbox_api" name="test_blackbox_rejects_unauthorized_patient_list_access" time="0.006" /><testcase classname="tests.test_blackbox_api" name="test_blackbox_login_requires_valid_schema" time="0.009" /><testcase classname="tests.test_blackbox_api" name="test_blackbox_duplicate_registration_returns_conflict" time="260.187"><failure message="sqlalchemy.exc.OperationalError: (psycopg.errors.ConnectionTimeout) connection timeout expired&#10;Multiple connection attempts failed. All failures were:&#10;- host: 'localhost', port: 5432, hostaddr: '::1': connection timeout expired&#10;- host: 'localhost', port: 5432, hostaddr: '127.0.0.1': connection timeout expired&#10;(Background on this error at: https://sqlalche.me/e/20/e3q8)">self = &lt;sqlalchemy.engine.base.Connection object at 0x000002359ADA8A50&gt;
+engine = Engine(postgresql+psycopg://postgres:***@localhost:5432/genAI_nutrition_platform)
+connection = None, _has_events = None, _allow_revalidate = True, _allow_autobegin = True
+
+    def __init__(
+        self,
+        engine: Engine,
+        connection: Optional[PoolProxiedConnection] = None,
+        _has_events: Optional[bool] = None,
+        _allow_revalidate: bool = True,
+        _allow_autobegin: bool = True,
+    ):
+        """Construct a new Connection."""
+        self.engine = engine
+        self.dialect = dialect = engine.dialect
+    
+        if connection is None:
+            try:
+&gt;               self._dbapi_connection = engine.raw_connection()
+                                         ^^^^^^^^^^^^^^^^^^^^^^^
+
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\engine\base.py:143: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\engine\base.py:3301: in raw_connection
+    return self.pool.connect()
+           ^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:447: in connect
+    return _ConnectionFairy._checkout(self)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:1264: in _checkout
+    fairy = _ConnectionRecord.checkout(pool)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:711: in checkout
+    rec = pool._do_get()
+          ^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\impl.py:177: in _do_get
+    with util.safe_reraise():
+         ^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\util\langhelpers.py:224: in __exit__
+    raise exc_value.with_traceback(exc_tb)
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\impl.py:175: in _do_get
+    return self._create_connection()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:388: in _create_connection
+    return _ConnectionRecord(self)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:673: in __init__
+    self.__connect()
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:899: in __connect
+    with util.safe_reraise():
+         ^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\util\langhelpers.py:224: in __exit__
+    raise exc_value.with_traceback(exc_tb)
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:895: in __connect
+    self.dbapi_connection = connection = pool._invoke_creator(self)
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\engine\create.py:661: in connect
+    return dialect.connect(*cargs, **cparams)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\engine\default.py:629: in connect
+    return self.loaded_dbapi.connect(*cargs, **cparams)  # type: ignore[no-any-return]  # NOQA: E501
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+cls = &lt;class 'psycopg.Connection'&gt;
+conninfo = 'host=localhost dbname=genAI_nutrition_platform user=postgres password=root port=5432 hostaddr=127.0.0.1'
+autocommit = False, prepare_threshold = 5
+context = &lt;psycopg.adapt.AdaptersMap object at 0x00000235963856D0&gt;, row_factory = None
+cursor_factory = None
+kwargs = {'dbname': 'genAI_nutrition_platform', 'host': 'localhost', 'password': 'root', 'port': 5432, ...}
+params = {'dbname': 'genAI_nutrition_platform', 'host': 'localhost', 'password': 'root', 'port': 5432, ...}
+timeout = 130
+
+    @classmethod
+    def connect(
+        cls,
+        conninfo: str = "",
+        *,
+        autocommit: bool = False,
+        prepare_threshold: int | None = 5,
+        context: AdaptContext | None = None,
+        row_factory: RowFactory[Row] | None = None,
+        cursor_factory: type[Cursor[Row]] | None = None,
+        **kwargs: ConnParam,
+    ) -&gt; Self:
+        """
+        Connect to a database server and return a new `Connection` instance.
+        """
+    
+        params = cls._get_connection_params(conninfo, **kwargs)
+        timeout = timeout_from_conninfo(params)
+        rv = None
+        attempts = conninfo_attempts(params)
+        conn_errors: list[tuple[e.Error, str]] = []
+        for attempt in attempts:
+            tdescr = (attempt.get("host"), attempt.get("port"), attempt.get("hostaddr"))
+            descr = "host: %r, port: %r, hostaddr: %r" % tdescr
+            logger.debug("connection attempt: %s", descr)
+            try:
+                conninfo = make_conninfo("", **attempt)
+                gen = cls._connect_gen(conninfo, timeout=timeout)
+                rv = waiting.wait_conn(gen, interval=_WAIT_INTERVAL)
+            except e.Error as ex:
+                logger.debug("connection failed: %s: %s", descr, str(ex))
+                conn_errors.append((ex, descr))
+            except e._NO_TRACEBACK as ex:
+                raise ex.with_traceback(None)
+            else:
+                logger.debug("connection succeeded: %s", descr)
+                break
+    
+        if not rv:
+            last_ex = conn_errors[-1][0]
+            if len(conn_errors) == 1:
+                raise last_ex.with_traceback(None)
+    
+            # Create a new exception with the same type as the last one, containing
+            # all attempt errors while preserving backward compatibility.
+            lines = [str(last_ex)]
+            lines.append("Multiple connection attempts failed. All failures were:")
+            lines.extend((f"- {descr}: {error}" for error, descr in conn_errors))
+&gt;           raise type(last_ex)("\n".join(lines)).with_traceback(None)
+E           psycopg.errors.ConnectionTimeout: connection timeout expired
+E           Multiple connection attempts failed. All failures were:
+E           - host: 'localhost', port: 5432, hostaddr: '::1': connection timeout expired
+E           - host: 'localhost', port: 5432, hostaddr: '127.0.0.1': connection timeout expired
+
+D:\HP\anaconda\Lib\site-packages\psycopg\connection.py:127: ConnectionTimeout
+
+The above exception was the direct cause of the following exception:
+
+    @pytest.mark.blackbox
+    def test_blackbox_duplicate_registration_returns_conflict() -&gt; None:
+        email = f"blackbox-{uuid4().hex[:10]}@example.com"
+        payload = {
+            "email": email,
+            "password": "Patient@12345",
+            "firstName": "Black",
+            "lastName": "Box",
+            "userType": "patient",
+        }
+    
+&gt;       first = client.post("/api/auth/register", json=payload)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_blackbox_api.py:49: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+D:\HP\anaconda\Lib\site-packages\starlette\testclient.py:552: in post
+    return super().post(
+D:\HP\anaconda\Lib\site-packages\httpx\_client.py:1144: in post
+    return self.request(
+D:\HP\anaconda\Lib\site-packages\starlette\testclient.py:451: in request
+    return super().request(
+D:\HP\anaconda\Lib\site-packages\httpx\_client.py:825: in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\httpx\_client.py:914: in send
+    response = self._send_handling_auth(
+D:\HP\anaconda\Lib\site-packages\httpx\_client.py:942: in _send_handling_auth
+    response = self._send_handling_redirects(
+D:\HP\anaconda\Lib\site-packages\httpx\_client.py:979: in _send_handling_redirects
+    response = self._send_single_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\httpx\_client.py:1014: in _send_single_request
+    response = transport.handle_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\starlette\testclient.py:354: in handle_request
+    raise exc
+D:\HP\anaconda\Lib\site-packages\starlette\testclient.py:351: in handle_request
+    portal.call(self.app, scope, receive, send)
+D:\HP\anaconda\Lib\site-packages\anyio\from_thread.py:290: in call
+    return cast(T_Retval, self.start_task_soon(func, *args).result())
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\concurrent\futures\_base.py:456: in result
+    return self.__get_result()
+           ^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\concurrent\futures\_base.py:401: in __get_result
+    raise self._exception
+D:\HP\anaconda\Lib\site-packages\anyio\from_thread.py:221: in _call_func
+    retval = await retval_or_awaitable
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\fastapi\applications.py:1054: in __call__
+    await super().__call__(scope, receive, send)
+D:\HP\anaconda\Lib\site-packages\starlette\applications.py:113: in __call__
+    await self.middleware_stack(scope, receive, send)
+D:\HP\anaconda\Lib\site-packages\starlette\middleware\errors.py:186: in __call__
+    raise exc
+D:\HP\anaconda\Lib\site-packages\starlette\middleware\errors.py:164: in __call__
+    await self.app(scope, receive, _send)
+D:\HP\anaconda\Lib\site-packages\starlette\middleware\cors.py:85: in __call__
+    await self.app(scope, receive, send)
+D:\HP\anaconda\Lib\site-packages\starlette\middleware\exceptions.py:63: in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+D:\HP\anaconda\Lib\site-packages\starlette\_exception_handler.py:53: in wrapped_app
+    raise exc
+D:\HP\anaconda\Lib\site-packages\starlette\_exception_handler.py:42: in wrapped_app
+    await app(scope, receive, sender)
+D:\HP\anaconda\Lib\site-packages\starlette\routing.py:716: in __call__
+    await self.middleware_stack(scope, receive, send)
+D:\HP\anaconda\Lib\site-packages\starlette\routing.py:736: in app
+    await route.handle(scope, receive, send)
+D:\HP\anaconda\Lib\site-packages\starlette\routing.py:290: in handle
+    await self.app(scope, receive, send)
+D:\HP\anaconda\Lib\site-packages\starlette\routing.py:78: in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+D:\HP\anaconda\Lib\site-packages\starlette\_exception_handler.py:53: in wrapped_app
+    raise exc
+D:\HP\anaconda\Lib\site-packages\starlette\_exception_handler.py:42: in wrapped_app
+    await app(scope, receive, sender)
+D:\HP\anaconda\Lib\site-packages\starlette\routing.py:75: in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\fastapi\routing.py:302: in app
+    raw_response = await run_endpoint_function(
+D:\HP\anaconda\Lib\site-packages\fastapi\routing.py:215: in run_endpoint_function
+    return await run_in_threadpool(dependant.call, **values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\starlette\concurrency.py:38: in run_in_threadpool
+    return await anyio.to_thread.run_sync(func)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\anyio\to_thread.py:56: in run_sync
+    return await get_async_backend().run_sync_in_worker_thread(
+D:\HP\anaconda\Lib\site-packages\anyio\_backends\_asyncio.py:2505: in run_sync_in_worker_thread
+    return await future
+           ^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\anyio\_backends\_asyncio.py:1005: in run
+    result = context.run(func, *args)
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+app\api\routes\auth.py:59: in register
+    user = create_user(db=db, payload=payload)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app\services\auth.py:64: in create_user
+    existing = db.scalar(select(User).where(User.email == payload.email))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\orm\session.py:2413: in scalar
+    return self._execute_internal(
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\orm\session.py:2241: in _execute_internal
+    conn = self._connection_for_bind(bind)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\orm\session.py:2110: in _connection_for_bind
+    return trans._connection_for_bind(engine, execution_options)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;string&gt;:2: in _connection_for_bind
+    ???
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\orm\state_changes.py:137: in _go
+    ret_value = fn(self, *arg, **kw)
+                ^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\orm\session.py:1189: in _connection_for_bind
+    conn = bind.connect()
+           ^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\engine\base.py:3277: in connect
+    return self._connection_cls(self)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\engine\base.py:145: in __init__
+    Connection._handle_dbapi_exception_noconnection(
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\engine\base.py:2440: in _handle_dbapi_exception_noconnection
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\engine\base.py:143: in __init__
+    self._dbapi_connection = engine.raw_connection()
+                             ^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\engine\base.py:3301: in raw_connection
+    return self.pool.connect()
+           ^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:447: in connect
+    return _ConnectionFairy._checkout(self)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:1264: in _checkout
+    fairy = _ConnectionRecord.checkout(pool)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:711: in checkout
+    rec = pool._do_get()
+          ^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\impl.py:177: in _do_get
+    with util.safe_reraise():
+         ^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\util\langhelpers.py:224: in __exit__
+    raise exc_value.with_traceback(exc_tb)
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\impl.py:175: in _do_get
+    return self._create_connection()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:388: in _create_connection
+    return _ConnectionRecord(self)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:673: in __init__
+    self.__connect()
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:899: in __connect
+    with util.safe_reraise():
+         ^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\util\langhelpers.py:224: in __exit__
+    raise exc_value.with_traceback(exc_tb)
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:895: in __connect
+    self.dbapi_connection = connection = pool._invoke_creator(self)
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\engine\create.py:661: in connect
+    return dialect.connect(*cargs, **cparams)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\engine\default.py:629: in connect
+    return self.loaded_dbapi.connect(*cargs, **cparams)  # type: ignore[no-any-return]  # NOQA: E501
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+cls = &lt;class 'psycopg.Connection'&gt;
+conninfo = 'host=localhost dbname=genAI_nutrition_platform user=postgres password=root port=5432 hostaddr=127.0.0.1'
+autocommit = False, prepare_threshold = 5
+context = &lt;psycopg.adapt.AdaptersMap object at 0x00000235963856D0&gt;, row_factory = None
+cursor_factory = None
+kwargs = {'dbname': 'genAI_nutrition_platform', 'host': 'localhost', 'password': 'root', 'port': 5432, ...}
+params = {'dbname': 'genAI_nutrition_platform', 'host': 'localhost', 'password': 'root', 'port': 5432, ...}
+timeout = 130
+
+    @classmethod
+    def connect(
+        cls,
+        conninfo: str = "",
+        *,
+        autocommit: bool = False,
+        prepare_threshold: int | None = 5,
+        context: AdaptContext | None = None,
+        row_factory: RowFactory[Row] | None = None,
+        cursor_factory: type[Cursor[Row]] | None = None,
+        **kwargs: ConnParam,
+    ) -&gt; Self:
+        """
+        Connect to a database server and return a new `Connection` instance.
+        """
+    
+        params = cls._get_connection_params(conninfo, **kwargs)
+        timeout = timeout_from_conninfo(params)
+        rv = None
+        attempts = conninfo_attempts(params)
+        conn_errors: list[tuple[e.Error, str]] = []
+        for attempt in attempts:
+            tdescr = (attempt.get("host"), attempt.get("port"), attempt.get("hostaddr"))
+            descr = "host: %r, port: %r, hostaddr: %r" % tdescr
+            logger.debug("connection attempt: %s", descr)
+            try:
+                conninfo = make_conninfo("", **attempt)
+                gen = cls._connect_gen(conninfo, timeout=timeout)
+                rv = waiting.wait_conn(gen, interval=_WAIT_INTERVAL)
+            except e.Error as ex:
+                logger.debug("connection failed: %s: %s", descr, str(ex))
+                conn_errors.append((ex, descr))
+            except e._NO_TRACEBACK as ex:
+                raise ex.with_traceback(None)
+            else:
+                logger.debug("connection succeeded: %s", descr)
+                break
+    
+        if not rv:
+            last_ex = conn_errors[-1][0]
+            if len(conn_errors) == 1:
+                raise last_ex.with_traceback(None)
+    
+            # Create a new exception with the same type as the last one, containing
+            # all attempt errors while preserving backward compatibility.
+            lines = [str(last_ex)]
+            lines.append("Multiple connection attempts failed. All failures were:")
+            lines.extend((f"- {descr}: {error}" for error, descr in conn_errors))
+&gt;           raise type(last_ex)("\n".join(lines)).with_traceback(None)
+E           sqlalchemy.exc.OperationalError: (psycopg.errors.ConnectionTimeout) connection timeout expired
+E           Multiple connection attempts failed. All failures were:
+E           - host: 'localhost', port: 5432, hostaddr: '::1': connection timeout expired
+E           - host: 'localhost', port: 5432, hostaddr: '127.0.0.1': connection timeout expired
+E           (Background on this error at: https://sqlalche.me/e/20/e3q8)
+
+D:\HP\anaconda\Lib\site-packages\psycopg\connection.py:127: OperationalError</failure></testcase><testcase classname="tests.test_blackbox_api" name="test_blackbox_rag_rejects_invalid_k_retrieved_range" time="260.118"><failure message="sqlalchemy.exc.OperationalError: (psycopg.errors.ConnectionTimeout) connection timeout expired&#10;Multiple connection attempts failed. All failures were:&#10;- host: 'localhost', port: 5432, hostaddr: '::1': connection timeout expired&#10;- host: 'localhost', port: 5432, hostaddr: '127.0.0.1': connection timeout expired&#10;(Background on this error at: https://sqlalche.me/e/20/e3q8)">self = &lt;sqlalchemy.engine.base.Connection object at 0x000002359C3E2060&gt;
+engine = Engine(postgresql+psycopg://postgres:***@localhost:5432/genAI_nutrition_platform)
+connection = None, _has_events = None, _allow_revalidate = True, _allow_autobegin = True
+
+    def __init__(
+        self,
+        engine: Engine,
+        connection: Optional[PoolProxiedConnection] = None,
+        _has_events: Optional[bool] = None,
+        _allow_revalidate: bool = True,
+        _allow_autobegin: bool = True,
+    ):
+        """Construct a new Connection."""
+        self.engine = engine
+        self.dialect = dialect = engine.dialect
+    
+        if connection is None:
+            try:
+&gt;               self._dbapi_connection = engine.raw_connection()
+                                         ^^^^^^^^^^^^^^^^^^^^^^^
+
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\engine\base.py:143: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\engine\base.py:3301: in raw_connection
+    return self.pool.connect()
+           ^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:447: in connect
+    return _ConnectionFairy._checkout(self)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:1264: in _checkout
+    fairy = _ConnectionRecord.checkout(pool)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:711: in checkout
+    rec = pool._do_get()
+          ^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\impl.py:177: in _do_get
+    with util.safe_reraise():
+         ^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\util\langhelpers.py:224: in __exit__
+    raise exc_value.with_traceback(exc_tb)
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\impl.py:175: in _do_get
+    return self._create_connection()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:388: in _create_connection
+    return _ConnectionRecord(self)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:673: in __init__
+    self.__connect()
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:899: in __connect
+    with util.safe_reraise():
+         ^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\util\langhelpers.py:224: in __exit__
+    raise exc_value.with_traceback(exc_tb)
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:895: in __connect
+    self.dbapi_connection = connection = pool._invoke_creator(self)
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\engine\create.py:661: in connect
+    return dialect.connect(*cargs, **cparams)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\engine\default.py:629: in connect
+    return self.loaded_dbapi.connect(*cargs, **cparams)  # type: ignore[no-any-return]  # NOQA: E501
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+cls = &lt;class 'psycopg.Connection'&gt;
+conninfo = 'host=localhost dbname=genAI_nutrition_platform user=postgres password=root port=5432 hostaddr=127.0.0.1'
+autocommit = False, prepare_threshold = 5
+context = &lt;psycopg.adapt.AdaptersMap object at 0x00000235963856D0&gt;, row_factory = None
+cursor_factory = None
+kwargs = {'dbname': 'genAI_nutrition_platform', 'host': 'localhost', 'password': 'root', 'port': 5432, ...}
+params = {'dbname': 'genAI_nutrition_platform', 'host': 'localhost', 'password': 'root', 'port': 5432, ...}
+timeout = 130
+
+    @classmethod
+    def connect(
+        cls,
+        conninfo: str = "",
+        *,
+        autocommit: bool = False,
+        prepare_threshold: int | None = 5,
+        context: AdaptContext | None = None,
+        row_factory: RowFactory[Row] | None = None,
+        cursor_factory: type[Cursor[Row]] | None = None,
+        **kwargs: ConnParam,
+    ) -&gt; Self:
+        """
+        Connect to a database server and return a new `Connection` instance.
+        """
+    
+        params = cls._get_connection_params(conninfo, **kwargs)
+        timeout = timeout_from_conninfo(params)
+        rv = None
+        attempts = conninfo_attempts(params)
+        conn_errors: list[tuple[e.Error, str]] = []
+        for attempt in attempts:
+            tdescr = (attempt.get("host"), attempt.get("port"), attempt.get("hostaddr"))
+            descr = "host: %r, port: %r, hostaddr: %r" % tdescr
+            logger.debug("connection attempt: %s", descr)
+            try:
+                conninfo = make_conninfo("", **attempt)
+                gen = cls._connect_gen(conninfo, timeout=timeout)
+                rv = waiting.wait_conn(gen, interval=_WAIT_INTERVAL)
+            except e.Error as ex:
+                logger.debug("connection failed: %s: %s", descr, str(ex))
+                conn_errors.append((ex, descr))
+            except e._NO_TRACEBACK as ex:
+                raise ex.with_traceback(None)
+            else:
+                logger.debug("connection succeeded: %s", descr)
+                break
+    
+        if not rv:
+            last_ex = conn_errors[-1][0]
+            if len(conn_errors) == 1:
+                raise last_ex.with_traceback(None)
+    
+            # Create a new exception with the same type as the last one, containing
+            # all attempt errors while preserving backward compatibility.
+            lines = [str(last_ex)]
+            lines.append("Multiple connection attempts failed. All failures were:")
+            lines.extend((f"- {descr}: {error}" for error, descr in conn_errors))
+&gt;           raise type(last_ex)("\n".join(lines)).with_traceback(None)
+E           psycopg.errors.ConnectionTimeout: connection timeout expired
+E           Multiple connection attempts failed. All failures were:
+E           - host: 'localhost', port: 5432, hostaddr: '::1': connection timeout expired
+E           - host: 'localhost', port: 5432, hostaddr: '127.0.0.1': connection timeout expired
+
+D:\HP\anaconda\Lib\site-packages\psycopg\connection.py:127: ConnectionTimeout
+
+The above exception was the direct cause of the following exception:
+
+    @pytest.mark.blackbox
+    def test_blackbox_rag_rejects_invalid_k_retrieved_range() -&gt; None:
+        email = f"blackbox-rag-{uuid4().hex[:10]}@example.com"
+&gt;       register = client.post(
+            "/api/auth/register",
+            json={
+                "email": email,
+                "password": "Patient@12345",
+                "firstName": "Rag",
+                "lastName": "Blackbox",
+                "userType": "patient",
+            },
+        )
+
+tests\test_blackbox_api.py:61: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+D:\HP\anaconda\Lib\site-packages\starlette\testclient.py:552: in post
+    return super().post(
+D:\HP\anaconda\Lib\site-packages\httpx\_client.py:1144: in post
+    return self.request(
+D:\HP\anaconda\Lib\site-packages\starlette\testclient.py:451: in request
+    return super().request(
+D:\HP\anaconda\Lib\site-packages\httpx\_client.py:825: in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\httpx\_client.py:914: in send
+    response = self._send_handling_auth(
+D:\HP\anaconda\Lib\site-packages\httpx\_client.py:942: in _send_handling_auth
+    response = self._send_handling_redirects(
+D:\HP\anaconda\Lib\site-packages\httpx\_client.py:979: in _send_handling_redirects
+    response = self._send_single_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\httpx\_client.py:1014: in _send_single_request
+    response = transport.handle_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\starlette\testclient.py:354: in handle_request
+    raise exc
+D:\HP\anaconda\Lib\site-packages\starlette\testclient.py:351: in handle_request
+    portal.call(self.app, scope, receive, send)
+D:\HP\anaconda\Lib\site-packages\anyio\from_thread.py:290: in call
+    return cast(T_Retval, self.start_task_soon(func, *args).result())
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\concurrent\futures\_base.py:456: in result
+    return self.__get_result()
+           ^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\concurrent\futures\_base.py:401: in __get_result
+    raise self._exception
+D:\HP\anaconda\Lib\site-packages\anyio\from_thread.py:221: in _call_func
+    retval = await retval_or_awaitable
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\fastapi\applications.py:1054: in __call__
+    await super().__call__(scope, receive, send)
+D:\HP\anaconda\Lib\site-packages\starlette\applications.py:113: in __call__
+    await self.middleware_stack(scope, receive, send)
+D:\HP\anaconda\Lib\site-packages\starlette\middleware\errors.py:186: in __call__
+    raise exc
+D:\HP\anaconda\Lib\site-packages\starlette\middleware\errors.py:164: in __call__
+    await self.app(scope, receive, _send)
+D:\HP\anaconda\Lib\site-packages\starlette\middleware\cors.py:85: in __call__
+    await self.app(scope, receive, send)
+D:\HP\anaconda\Lib\site-packages\starlette\middleware\exceptions.py:63: in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+D:\HP\anaconda\Lib\site-packages\starlette\_exception_handler.py:53: in wrapped_app
+    raise exc
+D:\HP\anaconda\Lib\site-packages\starlette\_exception_handler.py:42: in wrapped_app
+    await app(scope, receive, sender)
+D:\HP\anaconda\Lib\site-packages\starlette\routing.py:716: in __call__
+    await self.middleware_stack(scope, receive, send)
+D:\HP\anaconda\Lib\site-packages\starlette\routing.py:736: in app
+    await route.handle(scope, receive, send)
+D:\HP\anaconda\Lib\site-packages\starlette\routing.py:290: in handle
+    await self.app(scope, receive, send)
+D:\HP\anaconda\Lib\site-packages\starlette\routing.py:78: in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+D:\HP\anaconda\Lib\site-packages\starlette\_exception_handler.py:53: in wrapped_app
+    raise exc
+D:\HP\anaconda\Lib\site-packages\starlette\_exception_handler.py:42: in wrapped_app
+    await app(scope, receive, sender)
+D:\HP\anaconda\Lib\site-packages\starlette\routing.py:75: in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\fastapi\routing.py:302: in app
+    raw_response = await run_endpoint_function(
+D:\HP\anaconda\Lib\site-packages\fastapi\routing.py:215: in run_endpoint_function
+    return await run_in_threadpool(dependant.call, **values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\starlette\concurrency.py:38: in run_in_threadpool
+    return await anyio.to_thread.run_sync(func)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\anyio\to_thread.py:56: in run_sync
+    return await get_async_backend().run_sync_in_worker_thread(
+D:\HP\anaconda\Lib\site-packages\anyio\_backends\_asyncio.py:2505: in run_sync_in_worker_thread
+    return await future
+           ^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\anyio\_backends\_asyncio.py:1005: in run
+    result = context.run(func, *args)
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+app\api\routes\auth.py:59: in register
+    user = create_user(db=db, payload=payload)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app\services\auth.py:64: in create_user
+    existing = db.scalar(select(User).where(User.email == payload.email))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\orm\session.py:2413: in scalar
+    return self._execute_internal(
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\orm\session.py:2241: in _execute_internal
+    conn = self._connection_for_bind(bind)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\orm\session.py:2110: in _connection_for_bind
+    return trans._connection_for_bind(engine, execution_options)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;string&gt;:2: in _connection_for_bind
+    ???
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\orm\state_changes.py:137: in _go
+    ret_value = fn(self, *arg, **kw)
+                ^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\orm\session.py:1189: in _connection_for_bind
+    conn = bind.connect()
+           ^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\engine\base.py:3277: in connect
+    return self._connection_cls(self)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\engine\base.py:145: in __init__
+    Connection._handle_dbapi_exception_noconnection(
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\engine\base.py:2440: in _handle_dbapi_exception_noconnection
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\engine\base.py:143: in __init__
+    self._dbapi_connection = engine.raw_connection()
+                             ^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\engine\base.py:3301: in raw_connection
+    return self.pool.connect()
+           ^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:447: in connect
+    return _ConnectionFairy._checkout(self)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:1264: in _checkout
+    fairy = _ConnectionRecord.checkout(pool)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:711: in checkout
+    rec = pool._do_get()
+          ^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\impl.py:177: in _do_get
+    with util.safe_reraise():
+         ^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\util\langhelpers.py:224: in __exit__
+    raise exc_value.with_traceback(exc_tb)
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\impl.py:175: in _do_get
+    return self._create_connection()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:388: in _create_connection
+    return _ConnectionRecord(self)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:673: in __init__
+    self.__connect()
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:899: in __connect
+    with util.safe_reraise():
+         ^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\util\langhelpers.py:224: in __exit__
+    raise exc_value.with_traceback(exc_tb)
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:895: in __connect
+    self.dbapi_connection = connection = pool._invoke_creator(self)
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\engine\create.py:661: in connect
+    return dialect.connect(*cargs, **cparams)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\engine\default.py:629: in connect
+    return self.loaded_dbapi.connect(*cargs, **cparams)  # type: ignore[no-any-return]  # NOQA: E501
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+cls = &lt;class 'psycopg.Connection'&gt;
+conninfo = 'host=localhost dbname=genAI_nutrition_platform user=postgres password=root port=5432 hostaddr=127.0.0.1'
+autocommit = False, prepare_threshold = 5
+context = &lt;psycopg.adapt.AdaptersMap object at 0x00000235963856D0&gt;, row_factory = None
+cursor_factory = None
+kwargs = {'dbname': 'genAI_nutrition_platform', 'host': 'localhost', 'password': 'root', 'port': 5432, ...}
+params = {'dbname': 'genAI_nutrition_platform', 'host': 'localhost', 'password': 'root', 'port': 5432, ...}
+timeout = 130
+
+    @classmethod
+    def connect(
+        cls,
+        conninfo: str = "",
+        *,
+        autocommit: bool = False,
+        prepare_threshold: int | None = 5,
+        context: AdaptContext | None = None,
+        row_factory: RowFactory[Row] | None = None,
+        cursor_factory: type[Cursor[Row]] | None = None,
+        **kwargs: ConnParam,
+    ) -&gt; Self:
+        """
+        Connect to a database server and return a new `Connection` instance.
+        """
+    
+        params = cls._get_connection_params(conninfo, **kwargs)
+        timeout = timeout_from_conninfo(params)
+        rv = None
+        attempts = conninfo_attempts(params)
+        conn_errors: list[tuple[e.Error, str]] = []
+        for attempt in attempts:
+            tdescr = (attempt.get("host"), attempt.get("port"), attempt.get("hostaddr"))
+            descr = "host: %r, port: %r, hostaddr: %r" % tdescr
+            logger.debug("connection attempt: %s", descr)
+            try:
+                conninfo = make_conninfo("", **attempt)
+                gen = cls._connect_gen(conninfo, timeout=timeout)
+                rv = waiting.wait_conn(gen, interval=_WAIT_INTERVAL)
+            except e.Error as ex:
+                logger.debug("connection failed: %s: %s", descr, str(ex))
+                conn_errors.append((ex, descr))
+            except e._NO_TRACEBACK as ex:
+                raise ex.with_traceback(None)
+            else:
+                logger.debug("connection succeeded: %s", descr)
+                break
+    
+        if not rv:
+            last_ex = conn_errors[-1][0]
+            if len(conn_errors) == 1:
+                raise last_ex.with_traceback(None)
+    
+            # Create a new exception with the same type as the last one, containing
+            # all attempt errors while preserving backward compatibility.
+            lines = [str(last_ex)]
+            lines.append("Multiple connection attempts failed. All failures were:")
+            lines.extend((f"- {descr}: {error}" for error, descr in conn_errors))
+&gt;           raise type(last_ex)("\n".join(lines)).with_traceback(None)
+E           sqlalchemy.exc.OperationalError: (psycopg.errors.ConnectionTimeout) connection timeout expired
+E           Multiple connection attempts failed. All failures were:
+E           - host: 'localhost', port: 5432, hostaddr: '::1': connection timeout expired
+E           - host: 'localhost', port: 5432, hostaddr: '127.0.0.1': connection timeout expired
+E           (Background on this error at: https://sqlalche.me/e/20/e3q8)
+
+D:\HP\anaconda\Lib\site-packages\psycopg\connection.py:127: OperationalError</failure></testcase><testcase classname="tests.test_performance_api" name="test_performance_health_endpoint_average_latency" time="0.076" /><testcase classname="tests.test_performance_api" name="test_performance_chat_suggestions_p95_latency" time="260.069"><failure message="sqlalchemy.exc.OperationalError: (psycopg.errors.ConnectionTimeout) connection timeout expired&#10;Multiple connection attempts failed. All failures were:&#10;- host: 'localhost', port: 5432, hostaddr: '::1': connection timeout expired&#10;- host: 'localhost', port: 5432, hostaddr: '127.0.0.1': connection timeout expired&#10;(Background on this error at: https://sqlalche.me/e/20/e3q8)">self = &lt;sqlalchemy.engine.base.Connection object at 0x000002359C562060&gt;
+engine = Engine(postgresql+psycopg://postgres:***@localhost:5432/genAI_nutrition_platform)
+connection = None, _has_events = None, _allow_revalidate = True, _allow_autobegin = True
+
+    def __init__(
+        self,
+        engine: Engine,
+        connection: Optional[PoolProxiedConnection] = None,
+        _has_events: Optional[bool] = None,
+        _allow_revalidate: bool = True,
+        _allow_autobegin: bool = True,
+    ):
+        """Construct a new Connection."""
+        self.engine = engine
+        self.dialect = dialect = engine.dialect
+    
+        if connection is None:
+            try:
+&gt;               self._dbapi_connection = engine.raw_connection()
+                                         ^^^^^^^^^^^^^^^^^^^^^^^
+
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\engine\base.py:143: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\engine\base.py:3301: in raw_connection
+    return self.pool.connect()
+           ^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:447: in connect
+    return _ConnectionFairy._checkout(self)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:1264: in _checkout
+    fairy = _ConnectionRecord.checkout(pool)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:711: in checkout
+    rec = pool._do_get()
+          ^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\impl.py:177: in _do_get
+    with util.safe_reraise():
+         ^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\util\langhelpers.py:224: in __exit__
+    raise exc_value.with_traceback(exc_tb)
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\impl.py:175: in _do_get
+    return self._create_connection()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:388: in _create_connection
+    return _ConnectionRecord(self)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:673: in __init__
+    self.__connect()
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:899: in __connect
+    with util.safe_reraise():
+         ^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\util\langhelpers.py:224: in __exit__
+    raise exc_value.with_traceback(exc_tb)
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:895: in __connect
+    self.dbapi_connection = connection = pool._invoke_creator(self)
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\engine\create.py:661: in connect
+    return dialect.connect(*cargs, **cparams)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\engine\default.py:629: in connect
+    return self.loaded_dbapi.connect(*cargs, **cparams)  # type: ignore[no-any-return]  # NOQA: E501
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+cls = &lt;class 'psycopg.Connection'&gt;
+conninfo = 'host=localhost dbname=genAI_nutrition_platform user=postgres password=root port=5432 hostaddr=127.0.0.1'
+autocommit = False, prepare_threshold = 5
+context = &lt;psycopg.adapt.AdaptersMap object at 0x00000235963856D0&gt;, row_factory = None
+cursor_factory = None
+kwargs = {'dbname': 'genAI_nutrition_platform', 'host': 'localhost', 'password': 'root', 'port': 5432, ...}
+params = {'dbname': 'genAI_nutrition_platform', 'host': 'localhost', 'password': 'root', 'port': 5432, ...}
+timeout = 130
+
+    @classmethod
+    def connect(
+        cls,
+        conninfo: str = "",
+        *,
+        autocommit: bool = False,
+        prepare_threshold: int | None = 5,
+        context: AdaptContext | None = None,
+        row_factory: RowFactory[Row] | None = None,
+        cursor_factory: type[Cursor[Row]] | None = None,
+        **kwargs: ConnParam,
+    ) -&gt; Self:
+        """
+        Connect to a database server and return a new `Connection` instance.
+        """
+    
+        params = cls._get_connection_params(conninfo, **kwargs)
+        timeout = timeout_from_conninfo(params)
+        rv = None
+        attempts = conninfo_attempts(params)
+        conn_errors: list[tuple[e.Error, str]] = []
+        for attempt in attempts:
+            tdescr = (attempt.get("host"), attempt.get("port"), attempt.get("hostaddr"))
+            descr = "host: %r, port: %r, hostaddr: %r" % tdescr
+            logger.debug("connection attempt: %s", descr)
+            try:
+                conninfo = make_conninfo("", **attempt)
+                gen = cls._connect_gen(conninfo, timeout=timeout)
+                rv = waiting.wait_conn(gen, interval=_WAIT_INTERVAL)
+            except e.Error as ex:
+                logger.debug("connection failed: %s: %s", descr, str(ex))
+                conn_errors.append((ex, descr))
+            except e._NO_TRACEBACK as ex:
+                raise ex.with_traceback(None)
+            else:
+                logger.debug("connection succeeded: %s", descr)
+                break
+    
+        if not rv:
+            last_ex = conn_errors[-1][0]
+            if len(conn_errors) == 1:
+                raise last_ex.with_traceback(None)
+    
+            # Create a new exception with the same type as the last one, containing
+            # all attempt errors while preserving backward compatibility.
+            lines = [str(last_ex)]
+            lines.append("Multiple connection attempts failed. All failures were:")
+            lines.extend((f"- {descr}: {error}" for error, descr in conn_errors))
+&gt;           raise type(last_ex)("\n".join(lines)).with_traceback(None)
+E           psycopg.errors.ConnectionTimeout: connection timeout expired
+E           Multiple connection attempts failed. All failures were:
+E           - host: 'localhost', port: 5432, hostaddr: '::1': connection timeout expired
+E           - host: 'localhost', port: 5432, hostaddr: '127.0.0.1': connection timeout expired
+
+D:\HP\anaconda\Lib\site-packages\psycopg\connection.py:127: ConnectionTimeout
+
+The above exception was the direct cause of the following exception:
+
+    @pytest.mark.performance
+    def test_performance_chat_suggestions_p95_latency() -&gt; None:
+        iterations = 15
+        p95_limit_ms = float(os.getenv("CHAT_SUGGESTIONS_P95_MAX_MS", "1200"))
+&gt;       token = _register_patient_token()
+                ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_performance_api.py:67: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_performance_api.py:23: in _register_patient_token
+    response = client.post(
+D:\HP\anaconda\Lib\site-packages\starlette\testclient.py:552: in post
+    return super().post(
+D:\HP\anaconda\Lib\site-packages\httpx\_client.py:1144: in post
+    return self.request(
+D:\HP\anaconda\Lib\site-packages\starlette\testclient.py:451: in request
+    return super().request(
+D:\HP\anaconda\Lib\site-packages\httpx\_client.py:825: in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\httpx\_client.py:914: in send
+    response = self._send_handling_auth(
+D:\HP\anaconda\Lib\site-packages\httpx\_client.py:942: in _send_handling_auth
+    response = self._send_handling_redirects(
+D:\HP\anaconda\Lib\site-packages\httpx\_client.py:979: in _send_handling_redirects
+    response = self._send_single_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\httpx\_client.py:1014: in _send_single_request
+    response = transport.handle_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\starlette\testclient.py:354: in handle_request
+    raise exc
+D:\HP\anaconda\Lib\site-packages\starlette\testclient.py:351: in handle_request
+    portal.call(self.app, scope, receive, send)
+D:\HP\anaconda\Lib\site-packages\anyio\from_thread.py:290: in call
+    return cast(T_Retval, self.start_task_soon(func, *args).result())
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\concurrent\futures\_base.py:456: in result
+    return self.__get_result()
+           ^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\concurrent\futures\_base.py:401: in __get_result
+    raise self._exception
+D:\HP\anaconda\Lib\site-packages\anyio\from_thread.py:221: in _call_func
+    retval = await retval_or_awaitable
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\fastapi\applications.py:1054: in __call__
+    await super().__call__(scope, receive, send)
+D:\HP\anaconda\Lib\site-packages\starlette\applications.py:113: in __call__
+    await self.middleware_stack(scope, receive, send)
+D:\HP\anaconda\Lib\site-packages\starlette\middleware\errors.py:186: in __call__
+    raise exc
+D:\HP\anaconda\Lib\site-packages\starlette\middleware\errors.py:164: in __call__
+    await self.app(scope, receive, _send)
+D:\HP\anaconda\Lib\site-packages\starlette\middleware\cors.py:85: in __call__
+    await self.app(scope, receive, send)
+D:\HP\anaconda\Lib\site-packages\starlette\middleware\exceptions.py:63: in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+D:\HP\anaconda\Lib\site-packages\starlette\_exception_handler.py:53: in wrapped_app
+    raise exc
+D:\HP\anaconda\Lib\site-packages\starlette\_exception_handler.py:42: in wrapped_app
+    await app(scope, receive, sender)
+D:\HP\anaconda\Lib\site-packages\starlette\routing.py:716: in __call__
+    await self.middleware_stack(scope, receive, send)
+D:\HP\anaconda\Lib\site-packages\starlette\routing.py:736: in app
+    await route.handle(scope, receive, send)
+D:\HP\anaconda\Lib\site-packages\starlette\routing.py:290: in handle
+    await self.app(scope, receive, send)
+D:\HP\anaconda\Lib\site-packages\starlette\routing.py:78: in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+D:\HP\anaconda\Lib\site-packages\starlette\_exception_handler.py:53: in wrapped_app
+    raise exc
+D:\HP\anaconda\Lib\site-packages\starlette\_exception_handler.py:42: in wrapped_app
+    await app(scope, receive, sender)
+D:\HP\anaconda\Lib\site-packages\starlette\routing.py:75: in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\fastapi\routing.py:302: in app
+    raw_response = await run_endpoint_function(
+D:\HP\anaconda\Lib\site-packages\fastapi\routing.py:215: in run_endpoint_function
+    return await run_in_threadpool(dependant.call, **values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\starlette\concurrency.py:38: in run_in_threadpool
+    return await anyio.to_thread.run_sync(func)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\anyio\to_thread.py:56: in run_sync
+    return await get_async_backend().run_sync_in_worker_thread(
+D:\HP\anaconda\Lib\site-packages\anyio\_backends\_asyncio.py:2505: in run_sync_in_worker_thread
+    return await future
+           ^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\anyio\_backends\_asyncio.py:1005: in run
+    result = context.run(func, *args)
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+app\api\routes\auth.py:59: in register
+    user = create_user(db=db, payload=payload)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app\services\auth.py:64: in create_user
+    existing = db.scalar(select(User).where(User.email == payload.email))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\orm\session.py:2413: in scalar
+    return self._execute_internal(
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\orm\session.py:2241: in _execute_internal
+    conn = self._connection_for_bind(bind)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\orm\session.py:2110: in _connection_for_bind
+    return trans._connection_for_bind(engine, execution_options)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;string&gt;:2: in _connection_for_bind
+    ???
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\orm\state_changes.py:137: in _go
+    ret_value = fn(self, *arg, **kw)
+                ^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\orm\session.py:1189: in _connection_for_bind
+    conn = bind.connect()
+           ^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\engine\base.py:3277: in connect
+    return self._connection_cls(self)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\engine\base.py:145: in __init__
+    Connection._handle_dbapi_exception_noconnection(
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\engine\base.py:2440: in _handle_dbapi_exception_noconnection
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\engine\base.py:143: in __init__
+    self._dbapi_connection = engine.raw_connection()
+                             ^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\engine\base.py:3301: in raw_connection
+    return self.pool.connect()
+           ^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:447: in connect
+    return _ConnectionFairy._checkout(self)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:1264: in _checkout
+    fairy = _ConnectionRecord.checkout(pool)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:711: in checkout
+    rec = pool._do_get()
+          ^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\impl.py:177: in _do_get
+    with util.safe_reraise():
+         ^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\util\langhelpers.py:224: in __exit__
+    raise exc_value.with_traceback(exc_tb)
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\impl.py:175: in _do_get
+    return self._create_connection()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:388: in _create_connection
+    return _ConnectionRecord(self)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:673: in __init__
+    self.__connect()
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:899: in __connect
+    with util.safe_reraise():
+         ^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\util\langhelpers.py:224: in __exit__
+    raise exc_value.with_traceback(exc_tb)
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\pool\base.py:895: in __connect
+    self.dbapi_connection = connection = pool._invoke_creator(self)
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\engine\create.py:661: in connect
+    return dialect.connect(*cargs, **cparams)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\HP\anaconda\Lib\site-packages\sqlalchemy\engine\default.py:629: in connect
+    return self.loaded_dbapi.connect(*cargs, **cparams)  # type: ignore[no-any-return]  # NOQA: E501
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+cls = &lt;class 'psycopg.Connection'&gt;
+conninfo = 'host=localhost dbname=genAI_nutrition_platform user=postgres password=root port=5432 hostaddr=127.0.0.1'
+autocommit = False, prepare_threshold = 5
+context = &lt;psycopg.adapt.AdaptersMap object at 0x00000235963856D0&gt;, row_factory = None
+cursor_factory = None
+kwargs = {'dbname': 'genAI_nutrition_platform', 'host': 'localhost', 'password': 'root', 'port': 5432, ...}
+params = {'dbname': 'genAI_nutrition_platform', 'host': 'localhost', 'password': 'root', 'port': 5432, ...}
+timeout = 130
+
+    @classmethod
+    def connect(
+        cls,
+        conninfo: str = "",
+        *,
+        autocommit: bool = False,
+        prepare_threshold: int | None = 5,
+        context: AdaptContext | None = None,
+        row_factory: RowFactory[Row] | None = None,
+        cursor_factory: type[Cursor[Row]] | None = None,
+        **kwargs: ConnParam,
+    ) -&gt; Self:
+        """
+        Connect to a database server and return a new `Connection` instance.
+        """
+    
+        params = cls._get_connection_params(conninfo, **kwargs)
+        timeout = timeout_from_conninfo(params)
+        rv = None
+        attempts = conninfo_attempts(params)
+        conn_errors: list[tuple[e.Error, str]] = []
+        for attempt in attempts:
+            tdescr = (attempt.get("host"), attempt.get("port"), attempt.get("hostaddr"))
+            descr = "host: %r, port: %r, hostaddr: %r" % tdescr
+            logger.debug("connection attempt: %s", descr)
+            try:
+                conninfo = make_conninfo("", **attempt)
+                gen = cls._connect_gen(conninfo, timeout=timeout)
+                rv = waiting.wait_conn(gen, interval=_WAIT_INTERVAL)
+            except e.Error as ex:
+                logger.debug("connection failed: %s: %s", descr, str(ex))
+                conn_errors.append((ex, descr))
+            except e._NO_TRACEBACK as ex:
+                raise ex.with_traceback(None)
+            else:
+                logger.debug("connection succeeded: %s", descr)
+                break
+    
+        if not rv:
+            last_ex = conn_errors[-1][0]
+            if len(conn_errors) == 1:
+                raise last_ex.with_traceback(None)
+    
+            # Create a new exception with the same type as the last one, containing
+            # all attempt errors while preserving backward compatibility.
+            lines = [str(last_ex)]
+            lines.append("Multiple connection attempts failed. All failures were:")
+            lines.extend((f"- {descr}: {error}" for error, descr in conn_errors))
+&gt;           raise type(last_ex)("\n".join(lines)).with_traceback(None)
+E           sqlalchemy.exc.OperationalError: (psycopg.errors.ConnectionTimeout) connection timeout expired
+E           Multiple connection attempts failed. All failures were:
+E           - host: 'localhost', port: 5432, hostaddr: '::1': connection timeout expired
+E           - host: 'localhost', port: 5432, hostaddr: '127.0.0.1': connection timeout expired
+E           (Background on this error at: https://sqlalche.me/e/20/e3q8)
+
+D:\HP\anaconda\Lib\site-packages\psycopg\connection.py:127: OperationalError</failure></testcase></testsuite></testsuites>

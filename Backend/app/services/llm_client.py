@@ -4,6 +4,7 @@ Provides a unified interface regardless of the underlying LLM provider.
 """
 
 import logging
+import os
 from typing import Any, Dict, List, Optional
 from abc import ABC, abstractmethod
 
@@ -23,7 +24,7 @@ class LLMProvider(ABC):
 
 
 class OpenAICompatibleProvider(LLMProvider):
-    """OpenAI SDK provider for OpenAI-compatible endpoints."""
+    """OpenAI SDK chat-completions provider for OpenAI-compatible endpoints."""
     
     def __init__(
         self,
@@ -32,6 +33,7 @@ class OpenAICompatibleProvider(LLMProvider):
         *,
         base_url: str | None = None,
         provider_label: str = "OpenAI",
+        provider_key_env: tuple[str, ...] = (),
     ):
         """Initialize an OpenAI-compatible provider."""
         try:
@@ -43,7 +45,17 @@ class OpenAICompatibleProvider(LLMProvider):
         
         self.openai = openai
         self.provider_label = provider_label
-        self.api_key = (api_key or settings.llm_api_key or "").strip()
+        resolved_key = (api_key or "").strip()
+        if not resolved_key:
+            resolved_key = (settings.llm_api_key or "").strip()
+        if not resolved_key:
+            for env_var in provider_key_env:
+                env_value = (os.getenv(env_var) or "").strip()
+                if env_value:
+                    resolved_key = env_value
+                    break
+
+        self.api_key = resolved_key
         self.model = (model or settings.llm_model or "").strip()
         
         if not self.api_key:
@@ -69,7 +81,12 @@ class OpenAIProvider(OpenAICompatibleProvider):
     """OpenAI API provider."""
 
     def __init__(self, api_key: str | None = None, model: str | None = None):
-        super().__init__(api_key=api_key, model=model, provider_label="OpenAI")
+        super().__init__(
+            api_key=api_key,
+            model=model,
+            provider_label="OpenAI",
+            provider_key_env=("OPENAI_API_KEY",),
+        )
 
 
 class GeminiProvider(OpenAICompatibleProvider):
@@ -92,6 +109,7 @@ class GeminiProvider(OpenAICompatibleProvider):
             model=resolved_model,
             base_url=self.GEMINI_BASE_URL,
             provider_label="Gemini",
+            provider_key_env=("GEMINI_API_KEY", "GOOGLE_API_KEY"),
         )
         self.model_candidates = [self.model] + [candidate for candidate in self.DEFAULT_MODELS if candidate != self.model]
 
@@ -140,27 +158,79 @@ class LLMClient:
     def _resolve_provider_name() -> str:
         provider_name = (settings.llm_provider or "").strip().lower()
         api_key = (settings.llm_api_key or "").strip()
+        gemini_key = (os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or "").strip()
+        openai_key = (os.getenv("OPENAI_API_KEY") or "").strip()
 
-        if provider_name in {"", "openai"} and api_key.startswith("AIza"):
+        if provider_name in {"google", "google-gemini"}:
+            return "gemini"
+
+        # Default to Gemini when provider is omitted.
+        if not provider_name:
+            if gemini_key:
+                return "gemini"
+            if openai_key:
+                return "openai"
+            return "gemini"
+
+        # Support seamless migrations by auto-switching from openai label when a Google key is provided.
+        if provider_name == "openai" and (api_key.startswith("AIza") or gemini_key):
             logger.info("Auto-detected Gemini provider from Google API key prefix.")
             return "gemini"
 
-        return provider_name or "openai"
+        return provider_name
+
+    @staticmethod
+    def _provider_factories() -> dict[str, type[LLMProvider]]:
+        return {
+            "gemini": GeminiProvider,
+            "openai": OpenAIProvider,
+        }
+
+    @classmethod
+    def _provider_priority(cls) -> list[str]:
+        configured = cls._resolve_provider_name()
+        priorities = [configured]
+        for fallback_name in ("gemini", "openai"):
+            if fallback_name not in priorities:
+                priorities.append(fallback_name)
+        return priorities
+
+    @classmethod
+    def _build_provider(cls, provider_name: str) -> LLMProvider:
+        factories = cls._provider_factories()
+        provider_cls = factories.get(provider_name)
+        if provider_cls is None:
+            supported = ", ".join(sorted(factories.keys()))
+            raise ValueError(
+                f"Unknown LLM provider: {provider_name}. "
+                f"Supported: {supported}"
+            )
+        return provider_cls()
+
+    @classmethod
+    def _ensure_provider(cls) -> None:
+        if cls._provider is not None:
+            return
+
+        last_error: Exception | None = None
+        for provider_name in cls._provider_priority():
+            try:
+                cls._provider = cls._build_provider(provider_name)
+                logger.info("Initialized LLM provider: %s", provider_name)
+                return
+            except Exception as exc:  # noqa: BLE001 - provider setup should be resilient
+                last_error = exc
+                logger.warning("LLM provider %s initialization failed: %s", provider_name, exc)
+
+        if last_error is not None:
+            raise last_error
+        raise RuntimeError("No LLM provider could be initialized")
     
     @classmethod
     def _initialize_provider(cls) -> None:
         """Initialize the LLM provider based on configuration."""
-        provider_name = cls._resolve_provider_name()
-        
-        if provider_name == "openai":
-            cls._provider = OpenAIProvider()
-        elif provider_name == "gemini":
-            cls._provider = GeminiProvider()
-        else:
-            raise ValueError(
-                f"Unknown LLM provider: {provider_name}. "
-                f"Supported: openai, gemini"
-            )
+        cls._provider = None
+        cls._ensure_provider()
     
     @classmethod
     def set_provider(cls, provider: LLMProvider) -> None:
@@ -186,14 +256,15 @@ class LLMClient:
         
         if provider_override:
             override_name = provider_override.lower()
-            if override_name == "openai":
-                provider = OpenAIProvider()
-            elif override_name == "gemini":
-                provider = GeminiProvider()
+            provider = self._build_provider(override_name)
            
         
         if not provider:
-            raise RuntimeError("No LLM provider initialized")
+            self._initialize_provider()
+            provider = self._provider
+
+        if not provider:
+            raise RuntimeError("No LLM provider could be initialized from configured API keys")
         
         return provider.call(messages)
     
