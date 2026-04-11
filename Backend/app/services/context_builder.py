@@ -152,8 +152,17 @@ Provide a professional summary of this patient's current status, trends, and rec
         patients_str = "## Available Patients\n"
         for patient in available_patients:
             patients_str += f"\nID: {patient.get('id')} | {patient.get('name')} | Risk: {patient.get('risk_level')}"
+            adherence = patient.get('adherence')
+            if adherence is not None:
+                patients_str += f" | Adherence: {adherence}%"
+            alerts_count = patient.get('alerts_count')
+            if alerts_count is not None:
+                patients_str += f" | Alerts: {alerts_count}"
             if patient.get('last_metrics'):
                 patients_str += f" | BP: {patient['last_metrics'].get('blood_pressure')}"
+                glucose = patient['last_metrics'].get('glucose')
+                if glucose is not None:
+                    patients_str += f" | Glucose: {glucose}"
         
         user_message = f"""{patients_str}
 

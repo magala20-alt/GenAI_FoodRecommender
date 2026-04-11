@@ -40,6 +40,13 @@ function riskStyles(risk: RiskLevel | null) {
   return { badge: 'bg-slate-100 text-slate-600', dot: 'text-slate-500', bar: 'bg-slate-300' }
 }
 
+function adherenceBarClass(adherence: number | null) {
+  if (adherence == null) return 'bg-slate-300'
+  if (adherence >= 80) return 'bg-emerald-500'
+  if (adherence >= 60) return 'bg-amber-500'
+  return 'bg-red-500'
+}
+
 function getInitials(firstName: string, lastName: string) {
   return `${firstName[0] ?? ''}${lastName[0] ?? ''}`.toUpperCase() || 'NA'
 }
@@ -374,6 +381,7 @@ export function PatientListPage() {
                       const hasAlert = Boolean(patient.alerts)
                       const adherencePercent = patient.adherence ?? 0
                       const adherenceLabel = patient.adherence == null ? 'not updated' : `${patient.adherence}%`
+                      const adherenceColor = adherenceBarClass(patient.adherence)
 
                       return (
                         <tr key={patient.id} className="border-b border-slate-100 last:border-b-0">
@@ -395,7 +403,7 @@ export function PatientListPage() {
                           <td className="px-4 py-3">
                             <div className="w-20">
                               <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden mb-1">
-                                <div className={clsx('h-full rounded-full', styles.bar)} style={{ width: `${adherencePercent}%` }} />
+                                <div className={clsx('h-full rounded-full', adherenceColor)} style={{ width: `${adherencePercent}%` }} />
                               </div>
                               <p className="text-[10px] text-slate-500">{adherenceLabel}</p>
                             </div>

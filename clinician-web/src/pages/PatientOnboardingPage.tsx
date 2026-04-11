@@ -543,7 +543,7 @@ export function PatientOnboardingPage() {
                         >
                           Activate My Account →
                         </button>
-                        <p className="text-xs text-slate-500 mt-3">Temp password: cs-SM-2026-0306 · Link expires in 48 hours.</p>
+                        <p className="text-xs text-slate-500 mt-3">Temp password: TempPassword123! · Link expires in 48 hours.</p>
                       </div>
                     </div>
                   </div>

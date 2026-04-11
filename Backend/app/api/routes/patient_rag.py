@@ -757,9 +757,20 @@ def clinician_filter_patients(
         }
 
     matching_ids = [pid for pid in rag_result.get("matching_patient_ids", []) if pid in patient_lookup]
+
+    # Enforce deterministic adherence semantics for clinician safety.
+    # "Low adherence" must always mean lower percentages, never high adherence.
+    query_text = payload.query.strip().lower()
+    if "low adherence" in query_text:
+        matching_ids = [
+            pid
+            for pid in matching_ids
+            if patient_lookup[pid].adherence is not None and float(patient_lookup[pid].adherence) < 70
+        ]
+
     if not matching_ids:
         matching_ids = _fallback_match_ids(payload.query, available_patients)
-    if not matching_ids and payload.query.strip().lower() in {"all", "all patients", "show all"}:
+    if not matching_ids and query_text in {"all", "all patients", "show all"}:
         matching_ids = list(patient_lookup.keys())
 
     matched_patients = [patient_lookup[pid] for pid in matching_ids]
