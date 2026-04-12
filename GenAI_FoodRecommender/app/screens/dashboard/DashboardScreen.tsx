@@ -494,6 +494,7 @@ export function DashboardScreen() {
             </View>
 
             <ScrollView
+              style={styles.mealDetailScroll}
               contentContainerStyle={styles.mealDetailContent}
               showsVerticalScrollIndicator={false}
             >
@@ -923,8 +924,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.lg,
     paddingBottom: Spacing.md,
+    flex: 1,
     maxHeight: '88%',
     overflow: 'hidden',
+  },
+  mealDetailScroll: {
+    flex: 1,
   },
   mealDetailContent: {
     paddingTop: Spacing.md,
